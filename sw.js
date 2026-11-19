@@ -1,8 +1,8 @@
-// 서비스 워커: 앱 설치(PWA)와 오프라인 실행
+﻿// 서비스 워커: 앱 설치(PWA)와 오프라인 실행
 // - 앱 파일: 미리 저장(설치 시)
 // - 라이브러리·지도 자료·글꼴·국기(CDN): 한 번 받으면 저장해 두고 사용
 // - 날씨 API: 항상 새로 받되, 실패하면(오프라인) 마지막으로 받은 값을 사용
-const VERSION = "v1";
+const VERSION = "v202611192254";
 const APP = `weather-app-${VERSION}`;
 const CDN = "weather-cdn-v1";
 const API = "weather-api-v1";
