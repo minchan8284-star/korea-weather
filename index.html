@@ -1,0 +1,1438 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+<title>날씨</title>
+<!-- 앱 설치(PWA) · 안드로이드 상태 표시줄 색 -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#2f6fed" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#11151c" media="(prefers-color-scheme: dark)" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="format-detection" content="telephone=no" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --text: #1d2433; --muted: #6b7486;
+    --line: #e3e7ef; --accent: #2f6fed; --hot: #e2553d; --cold: #2f6fed;
+    --sea: #eaf1fa; --land: #fbfcfe; --land-hover: #eef2f8; --land-line: #b9c3d3; --border-heat: #3b4352;
+    --shade: #cdd3dc; --mdl: #d63a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11151c; --card: #1a2029; --text: #e8ecf3; --muted: #95a0b3;
+            --line: #2a3240; --accent: #6b9cff; --hot: #ff7a63; --cold: #6b9cff;
+            --sea: #121a26; --land: #222a36; --land-hover: #2b3544; --land-line: #3d4859; --border-heat: #10141b;
+            --shade: #333b48; --mdl: #ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+         -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; }
+  button, input { touch-action: manipulation; } /* 두 번 탭 확대 지연 없앰 */
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 16px 16px 32px; }
+
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  .ext { display: flex; gap: 8px; margin-right: auto; flex-wrap: wrap; }
+  .ext button { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--line); background: var(--card);
+                color: var(--text); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .ext button:hover { border-color: var(--accent); }
+  .ext .k { color: var(--muted); font-size: 12px; }
+  .ext b { font-size: 15px; }
+  .search { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px;
+            padding: 7px 10px; font: inherit; font-size: 14px; width: 200px; }
+  .search.miss { border-color: var(--hot); }
+  .updated { color: var(--muted); font-size: 13px; }
+  button.btn { border: 1px solid var(--line); background: var(--card); color: var(--text);
+               border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+  .tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 12px 0 10px; }
+  .tabs button { border: 0; background: var(--card); color: var(--muted); padding: 7px 16px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tabs button.on { background: var(--accent); color: #fff; }
+  .tabbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .subtabs { display: inline-flex; gap: 2px; }
+  .subtabs button { border: 0; background: none; color: var(--muted); padding: 6px 10px; font: inherit; font-size: 13px;
+                    cursor: pointer; border-bottom: 2px solid transparent; }
+  .subtabs button.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 14px; align-items: start; }
+  @media (max-width: 960px) { .main { grid-template-columns: 1fr; } }
+
+  /* 지도 */
+  .mapbox { position: relative; background: var(--sea); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .mapbox svg { display: block; width: 100%; height: calc(100vh - 150px); min-height: 460px; user-select: none; }
+  .prov { fill: var(--land); stroke: var(--land-line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round;
+          cursor: pointer; }
+  #shade, #shadeN { fill: var(--shade); stroke: none; pointer-events: none; }
+  .prov.off { display: none; }
+  #mdl { fill: none; stroke: var(--mdl); stroke-width: 2.4; stroke-dasharray: 8 4; stroke-linejoin: round;
+         vector-effect: non-scaling-stroke; pointer-events: none; }
+  .mdl-label { font-weight: 700; fill: var(--mdl); paint-order: stroke; stroke: var(--sea); pointer-events: none; }
+  .prov:hover { fill: var(--land-hover); }
+  .prov.dim { opacity: .45; }
+  .prov.sel { stroke: var(--accent); stroke-width: 1.8; cursor: default; }
+  /* 기온 분포: 아래 깔린 기온 이미지가 보이도록 육지를 투명하게, 경계선은 진하게 */
+  .heat .prov { fill: transparent; stroke: var(--border-heat); stroke-width: .8; }
+  .heat .prov:hover { fill: rgba(255, 255, 255, .18); }
+  .heat .prov.dim { opacity: 1; fill: var(--sea); fill-opacity: .72; }
+  .heat .prov.sel { stroke: var(--accent); stroke-width: 2; }
+  #heat { pointer-events: none; }
+  .mk { cursor: pointer; }
+  .mk rect { fill: var(--card); stroke-width: 2; }
+  .mk.active rect { stroke: var(--accent) !important; stroke-width: 3; }
+  /* 지도 위 글자는 나눔고딕 */
+  #map text, #globe text { font-family: "Nanum Gothic", "NanumGothic", "Malgun Gothic", sans-serif; }
+  .mk text { fill: var(--text); }
+  .mk .nm { font-size: 11px; fill: var(--text); paint-order: stroke; stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; }
+  .heat .mk .nm { stroke: var(--card); }
+  .dot { cursor: pointer; stroke: var(--card); stroke-width: 1.5; }
+  .leader { stroke: var(--muted); stroke-width: 1; }
+
+  .ovl { position: absolute; display: flex; align-items: center; gap: 6px; background: var(--card);
+         border: 1px solid var(--line); border-radius: 8px; padding: 4px; font-size: 13px; }
+  .crumb { left: 10px; top: 10px; }
+  .crumb .title { font-weight: 600; padding: 0 6px; }
+  .seg { display: inline-flex; border-radius: 6px; overflow: hidden; }
+  .seg button, .ovl .tool { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px;
+                            padding: 4px 10px; cursor: pointer; border-radius: 6px; }
+  .seg button.on, .ovl .tool.on { background: var(--accent); color: #fff; }
+  .crumb .back { color: var(--accent); }
+  .tools { right: 10px; top: 10px; }
+  .legend { left: 10px; bottom: 10px; padding: 5px 9px; color: var(--muted); font-size: 12px; }
+  .legend .scale { height: 8px; width: 150px; border-radius: 2px; }
+
+  /* 세계 지구본 */
+  .worldbox { background: var(--card); }
+  #globe { display: block; width: 100%; height: calc(100vh - 150px); min-height: 460px; cursor: grab; touch-action: none; user-select: none; }
+  #globe.dragging { cursor: grabbing; }
+  .sphere { fill: var(--sea); stroke: var(--land-line); stroke-width: 1; }
+  .grat { fill: none; stroke: var(--land-line); stroke-opacity: .4; stroke-width: .5; }
+  .country { stroke: var(--card); stroke-width: .6; cursor: pointer; }
+  .country:hover { stroke: var(--text); stroke-width: 1.2; }
+  .country.sel { stroke: var(--accent); stroke-width: 2.2; }
+  .cname { fill: var(--text); font-weight: 800; text-anchor: middle; dominant-baseline: middle;
+           pointer-events: none; letter-spacing: .02em; }
+  .wmsg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
+
+  /* 목록: 시·도별 한 줄 요약 + 펼치면 도시 칩 */
+  .listview { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 16px 14px; }
+  .lhead, .prow { display: grid; grid-template-columns: minmax(110px, 1fr) 32px 60px 120px 70px; align-items: center; gap: 8px; }
+  .lhead { color: var(--muted); font-size: 12px; padding: 6px 6px; }
+  .lhead span:nth-child(3), .lhead span:nth-child(4) { text-align: right; }
+  .prow { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit;
+          font-size: 15px; padding: 10px 6px; cursor: pointer; text-align: left; }
+  .prow:hover { background: var(--bg); }
+  .prow .pn { font-weight: 600; }
+  .prow .pt { text-align: right; font-weight: 700; font-size: 17px; }
+  .prow .pr { text-align: right; font-size: 13px; }
+  .prow .pc { text-align: right; color: var(--muted); font-size: 12px; }
+  .prow .chev { display: inline-block; transition: transform .15s; }
+  .prow.open .chev { transform: rotate(90deg); }
+  .pcities { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 6px 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--bg);
+          color: inherit; font: inherit; font-size: 13px; border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+  .chip:hover, .chip.active { border-color: var(--accent); }
+  .lsep { border-top: 2px solid var(--line); margin-top: 10px; padding: 10px 6px 4px; font-weight: 700; font-size: 13px; color: var(--muted); }
+  @media (max-width: 520px) {
+    .lhead, .prow { grid-template-columns: 1fr 26px 48px 92px; }
+    .lhead span:last-child, .prow .pc { display: none; }
+  }
+  .hi { color: var(--hot); } .lo { color: var(--cold); }
+
+  /* 상세 */
+  .detail { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; position: sticky; top: 12px; }
+  .detail h2 { margin: 0; font-size: 22px; }
+  .detail .flag { position: absolute; top: 16px; right: 16px; width: 60px; height: 45px; object-fit: cover;
+                  border-radius: 4px; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  .detail .flag ~ h2, .detail .flag ~ .prov-name { padding-right: 72px; }
+  .detail .prov-name { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .now { display: flex; gap: 12px; align-items: center; margin: 12px 0; }
+  .now .big { font-size: 46px; font-weight: 700; }
+  .now .icon { font-size: 48px; }
+  .now .desc { color: var(--muted); font-size: 13px; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .stat { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; }
+  .stat .k { color: var(--muted); font-size: 12px; } .stat .v { font-weight: 600; margin-top: 2px; font-size: 14px; }
+  h3 { font-size: 14px; margin: 16px 0 8px; }
+  .hourly { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+  .hour { flex: 0 0 56px; text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 2px; font-size: 12px; }
+  .hour .i { font-size: 20px; margin: 3px 0; }
+  .hour .p { color: var(--accent); font-size: 11px; }
+  .day { display: grid; grid-template-columns: 70px 26px 1fr 40px 32px 32px; align-items: center; gap: 6px;
+         border-bottom: 1px solid var(--line); padding: 6px 0; font-size: 13px; }
+  .day:last-child { border-bottom: 0; }
+  .day .bar { height: 6px; border-radius: 3px; background: var(--line); position: relative; }
+  .day .bar span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--cold), var(--hot)); }
+  .day .p { color: var(--accent); font-size: 11px; text-align: right; }
+  .day .hi, .day .lo { text-align: right; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .err { color: var(--hot); margin: 8px 0; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  footer a { color: inherit; }
+  .grab { display: none; }
+  .install { display: none; }
+  .install.show { display: inline-block; background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ───────── 휴대폰(안드로이드) ───────── */
+  @media (max-width: 760px) {
+    :root { --peek: 148px; }
+    .wrap { padding: calc(8px + env(safe-area-inset-top)) 10px calc(var(--peek) + 24px + env(safe-area-inset-bottom)); }
+    /* 머리: 제목·갱신 시각·버튼 / 검색 / 최고·최저(가로 스크롤) */
+    header { gap: 8px; }
+    h1 { flex: 1; font-size: 20px; }
+    .updated { font-size: 12px; }
+    button.btn { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
+    .search { order: 5; width: 100%; font-size: 16px; padding: 11px 12px; border-radius: 10px; } /* 16px: 입력 시 화면 확대 방지 */
+    .ext { order: 6; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0; }
+    .ext::-webkit-scrollbar { display: none; }
+    .ext button { flex: 0 0 auto; padding: 7px 12px; }
+    /* 탭: 손가락으로 누르기 쉬운 크기 */
+    .tabbar { gap: 6px; }
+    .tabs { margin: 10px 0 8px; }
+    .tabs button { padding: 10px 22px; font-size: 15px; }
+    .subtabs button { padding: 10px 12px; font-size: 14px; }
+    .mapbox { border-radius: 12px; }
+    .mapbox svg, #globe { height: calc(100dvh - 210px - var(--peek)); min-height: 340px; }
+    .ovl .tool, .seg button { padding: 8px 12px; font-size: 14px; }
+    .legend { left: auto; right: 8px; bottom: 8px; padding: 4px 7px; } /* 제주도를 가리지 않게 오른쪽 아래(바다) */
+    .legend .scale { width: 70px; }
+    footer { font-size: 11px; }
+
+    /* 상세 날씨: 화면 아래 바텀시트 (위로 끌거나 누르면 펼침) */
+    .main { display: block; }
+    .detail { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50; margin: 0;
+              border-radius: 18px 18px 0 0; border-bottom: 0; max-height: 84dvh; overflow: hidden;
+              padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+              transform: translateY(calc(100% - var(--peek) - env(safe-area-inset-bottom)));
+              transition: transform .26s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 -6px 24px rgba(0, 0, 0, .18); }
+    .detail.open { transform: translateY(0); overflow-y: auto; overscroll-behavior: contain; }
+    .grab { display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 4px auto 10px; }
+    .detail .flag { top: 22px; width: 52px; height: 39px; }
+    .detail .now { margin: 8px 0 12px; }
+    .now .big { font-size: 40px; } .now .icon { font-size: 40px; }
+    .hour { flex-basis: 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>날씨</h1>
+    <div class="ext" id="ext"></div>
+    <input class="search" id="search" type="search" enterkeyhint="search" placeholder="도시 검색 후 Enter" autocomplete="off" />
+    <span class="updated" id="updated">불러오는 중…</span>
+    <button class="btn install" id="installBtn" title="홈 화면에 앱으로 설치">앱 설치</button>
+    <button class="btn" id="refresh" title="새로고침">⟳</button>
+  </header>
+
+  <div class="tabbar">
+    <div class="tabs" role="tablist">
+      <button id="tabKorea" class="on" role="tab">한국</button>
+      <button id="tabWorld" role="tab">세계</button>
+    </div>
+    <!-- 한국 탭에 딸린 보기 -->
+    <div class="subtabs" id="subTabs">
+      <button id="tabMap" class="on">지도</button>
+      <button id="tabList">목록</button>
+    </div>
+  </div>
+  <div id="error" class="err" hidden></div>
+
+  <div class="main">
+    <div>
+      <div class="mapbox" id="mapView">
+        <svg id="map" role="img" aria-label="전국 도시별 날씨 지도">
+          <defs>
+            <clipPath id="southClip"><path id="southClipPath"/></clipPath>
+            <clipPath id="northClip"><path id="northClipPath"/></clipPath>
+          </defs>
+          <image id="heat" preserveAspectRatio="none" hidden></image>
+          <g id="land"></g>
+          <g id="southDeco" hidden>
+            <path id="shadeN"/>
+            <path id="shade" clip-path="url(#northClip)"/>
+            <path id="mdl"/>
+            <text id="mdlLabel" class="mdl-label">휴전선</text>
+          </g>
+          <g id="marks"></g>
+        </svg>
+        <div class="ovl crumb" id="crumb">
+          <div class="seg" id="seg">
+            <button data-top="all" class="on">한반도</button>
+            <button data-top="south">남한</button>
+          </div>
+          <button class="tool back" id="back" hidden>← 돌아가기</button>
+          <span class="title" id="crumbText" hidden></span>
+        </div>
+        <div class="ovl tools" id="tools">
+          <button class="tool" id="heatBtn" title="기온 분포를 색으로 보기">🌡 기온 분포</button>
+        </div>
+        <div class="ovl legend"><span>−15°</span><span class="scale" id="legendScale"></span><span>35°</span></div>
+      </div>
+      <div class="listview" id="listView" hidden></div>
+      <div class="mapbox worldbox" id="worldView" hidden>
+        <svg id="globe" role="img" aria-label="세계 나라별 날씨 지구본"></svg>
+        <div class="ovl crumb"><span class="title">세계 · 도시별 날씨</span></div>
+        <div class="ovl tools">
+          <button class="tool" id="gzin" title="확대">＋</button>
+          <button class="tool" id="gzout" title="축소">－</button>
+          <button class="tool" id="gzreset" title="원래 크기">1×</button>
+          <button class="tool on" id="spinBtn" title="지구본 자동 회전">⟳ 자동 회전</button>
+        </div>
+        <div class="ovl legend"><span>−15°</span><span class="scale"></span><span>35°</span></div>
+        <div class="wmsg" id="worldMsg" hidden>지구본을 불러오는 중…</div>
+      </div>
+    </div>
+    <aside class="detail" id="sheet">
+      <div class="grab" id="grab" role="button" aria-label="상세 날씨 펼치기/접기"></div>
+      <div id="detail"><div class="muted">도시를 선택하세요.</div></div>
+    </aside>
+  </div>
+
+  <footer>날씨 데이터: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0) ·
+    북한 지역 행정구역은 이북5도 기준 · 경계: 사용자 제작 데이터 · 기온 분포는 약 35km 격자 지점 예보값을 보간한 것 ·
+    휴전선: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+    세계 국가 경계·수도: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a></footer>
+</div>
+
+<script src="korea_provinces.js"></script>
+<script src="cities.js"></script>
+<script src="mdl.js"></script>
+<script src="world_cities.js"></script>
+<script>
+// ───────── 데이터 ─────────
+const PROV = Object.fromEntries(window.PROVINCES.map(p => [p.key, p]));
+function inRing([x, y], ring) {
+  let inside = false;
+  for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
+    const [xa, ya] = ring[a], [xb, yb] = ring[b];
+    if ((ya > y) !== (yb > y) && x < (xb - xa) * (y - ya) / (yb - ya) + xa) inside = !inside;
+  }
+  return inside;
+}
+// 휴전선(군사분계선)과 남북 경계: mdl.js (OpenStreetMap 자료로 생성)
+const MDL = window.MDL_LINE;
+// 남·북 구분: 서해 북방한계선 서쪽 끝(백령도 북쪽, 개략) → OSM 경계선 → 동해로 연장
+const BORDER = window.BORDER_LINE;
+const DIVIDE = [[118, 38.05], [124.85, 38.03], [125.10, 37.80], [125.55, 37.74], ...BORDER, [136, BORDER[BORDER.length - 1][1]]];
+const SOUTH_POLY = [...DIVIDE, [136, 30], [118, 30]];
+const NORTH_POLY = [...DIVIDE, [136, 46], [118, 46]];
+// 휴전선이 지나가 남·북으로 잘라야 하는 도 (나머지는 도 단위로 남/북이 정해짐)
+const SPLIT = ["경기", "강원"];
+const CITIES = window.CITIES.map(([name, lat, lon, prov, rank], i) => ({
+  id: i, name, lat, lon, prov, rank, north: !!PROV[prov].north,
+  // 휴전선 이남 여부: 휴전선이 지나는 경기·강원만 선으로 판별 (개성·평강 등 미수복 지역 제외)
+  south: !PROV[prov].north && (!SPLIT.includes(prov) || inRing([lon, lat], SOUTH_POLY)),
+}));
+const GEO = window.KOREA_GEO || { features: [] };
+const METRO = ["서울", "부산", "대구", "인천", "대전", "울산", "세종"];
+
+// WMO 날씨 코드 → [설명, 낮 아이콘, 밤 아이콘]
+const WMO = {
+  0: ["맑음", "☀️", "🌙"], 1: ["대체로 맑음", "🌤️", "🌙"], 2: ["구름 조금", "⛅", "☁️"], 3: ["흐림", "☁️", "☁️"],
+  45: ["안개", "🌫️", "🌫️"], 48: ["짙은 안개", "🌫️", "🌫️"],
+  51: ["약한 이슬비", "🌦️", "🌧️"], 53: ["이슬비", "🌦️", "🌧️"], 55: ["강한 이슬비", "🌧️", "🌧️"],
+  56: ["어는 이슬비", "🌧️", "🌧️"], 57: ["강한 어는 이슬비", "🌧️", "🌧️"],
+  61: ["약한 비", "🌦️", "🌧️"], 63: ["비", "🌧️", "🌧️"], 65: ["강한 비", "🌧️", "🌧️"],
+  66: ["어는 비", "🌧️", "🌧️"], 67: ["강한 어는 비", "🌧️", "🌧️"],
+  71: ["약한 눈", "🌨️", "🌨️"], 73: ["눈", "🌨️", "🌨️"], 75: ["폭설", "❄️", "❄️"], 77: ["싸락눈", "🌨️", "🌨️"],
+  80: ["약한 소나기", "🌦️", "🌧️"], 81: ["소나기", "🌧️", "🌧️"], 82: ["강한 소나기", "⛈️", "⛈️"],
+  85: ["약한 눈 소나기", "🌨️", "🌨️"], 86: ["강한 눈 소나기", "❄️", "❄️"],
+  95: ["뇌우", "⛈️", "⛈️"], 96: ["우박 동반 뇌우", "⛈️", "⛈️"], 99: ["강한 우박 뇌우", "⛈️", "⛈️"],
+};
+const wmo = (code, isDay = 1) => { const w = WMO[code] || ["알 수 없음", "❔", "❔"]; return { desc: w[0], icon: isDay ? w[1] : w[2] }; };
+const WIND_DIRS = ["북", "북북동", "북동", "동북동", "동", "동남동", "남동", "남남동", "남", "남남서", "남서", "서남서", "서", "서북서", "북서", "북북서"];
+const windDir = deg => WIND_DIRS[Math.round(deg / 22.5) % 16] + "풍";
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const r = n => Math.round(n);
+
+// 기온 색: −15°C 파랑 … 35°C 빨강. 기온 분포 지도는 2°C 단위 계단색
+const T_MIN = -15, T_MAX = 35, BAND = 2;
+const hue = t => 225 - Math.max(0, Math.min(1, (t - T_MIN) / (T_MAX - T_MIN))) * 225;
+const tempColor = t => `hsl(${Math.round(hue(t))} 72% 50%)`;
+const bandOf = t => Math.floor(t / BAND) * BAND + BAND / 2;
+function hslRgb(h, s, l) {
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return [f(0) * 255, f(8) * 255, f(4) * 255].map(Math.round);
+}
+const heatRgb = t => hslRgb(hue(bandOf(t)), .7, .6);
+
+// ───────── 날씨 API ─────────
+// 도시가 많아 Open-Meteo 무료 한도(하루 1만 건)를 고려: 전체 현황은 가볍게, 상세는 선택한 도시만
+const API = "https://api.open-meteo.com/v1/forecast";
+const OVERVIEW_TTL = 30 * 60 * 1000, DETAIL_TTL = 30 * 60 * 1000, CHUNK = 100;
+let overview = [];            // CITIES 순서: {temp, code, isDay, max, min}
+let overviewTime = 0;
+const detailCache = new Map();
+let selected = CITIES.findIndex(c => c.name === "서울");
+
+function cacheGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
+function cacheSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+const cityKey = CITIES.map(c => c.name).join();
+
+// Open-Meteo 무료판은 분당 600건(지점 수 기준) 제한 → 최근 1분 사용량을 세어 넘을 것 같으면 기다렸다가 요청
+const callLog = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function throttle(n) {
+  for (;;) {
+    const now = Date.now();
+    while (callLog.length && now - callLog[0][0] > 61000) callLog.shift();
+    const used = callLog.reduce((s, c) => s + c[1], 0);
+    if (used + n <= 550 || !callLog.length) { callLog.push([now, n]); return; }
+    await sleep(61000 - (now - callLog[0][0]) + 200);
+  }
+}
+async function apiGet(params, n = 1) {
+  await throttle(n);
+  const res = await fetch(`${API}?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function loadOverview(force = false) {
+  const $updated = document.getElementById("updated"), $err = document.getElementById("error");
+  const cached = cacheGet("kw_overview_v3");
+  if (!force && cached && cached.key === cityKey && Date.now() - cached.t < OVERVIEW_TTL) {
+    overview = cached.data; overviewTime = cached.t;
+  } else {
+    $updated.textContent = "불러오는 중…";
+    try {
+      const chunks = [];
+      for (let i = 0; i < CITIES.length; i += CHUNK) chunks.push(CITIES.slice(i, i + CHUNK));
+      const results = await Promise.all(chunks.map(async list => {
+        const params = new URLSearchParams({
+          latitude: list.map(c => c.lat).join(","), longitude: list.map(c => c.lon).join(","),
+          current: "temperature_2m,weather_code,is_day",
+          daily: "temperature_2m_max,temperature_2m_min",
+          timezone: "Asia/Seoul", forecast_days: "1",
+        });
+        const json = await apiGet(params, list.length);
+        return Array.isArray(json) ? json : [json];
+      }));
+      overview = results.flat().map(d => ({
+        temp: d.current.temperature_2m, code: d.current.weather_code, isDay: d.current.is_day,
+        max: d.daily.temperature_2m_max[0], min: d.daily.temperature_2m_min[0],
+      }));
+      overviewTime = Date.now();
+      cacheSet("kw_overview_v3", { t: overviewTime, key: cityKey, data: overview });
+      $err.hidden = true;
+    } catch (e) {
+      $err.textContent = "날씨 정보를 불러오지 못했습니다: " + e.message;
+      $err.hidden = false;
+      $updated.textContent = "";
+      return;
+    }
+  }
+  $updated.textContent = "업데이트 " + new Date(overviewTime).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  renderExtremes();
+  drawMarkers();
+  renderList();
+}
+
+// 상단: 현재 보기(한반도/남한) 범위의 최고·최저 기온 지역
+function renderExtremes() {
+  const el = document.getElementById("ext");
+  if (tab === "world") return renderWorldExtremes(el);
+  if (!overview.length) { el.innerHTML = ""; return; }
+  const scope = topView === "south" ? CITIES.filter(c => c.south) : CITIES;
+  let hi = scope[0], lo = scope[0];
+  for (const c of scope) {
+    if (overview[c.id].temp > overview[hi.id].temp) hi = c;
+    if (overview[c.id].temp < overview[lo.id].temp) lo = c;
+  }
+  const where = topView === "south" ? "남한" : "한반도";
+  const chip = (c, label, cls) => `<button data-id="${c.id}" title="${PROV[c.prov].name} ${c.name}">
+    <span class="k">${where} ${label}</span><span>${c.name}</span><b class="${cls}">${r(overview[c.id].temp)}°</b></button>`;
+  el.innerHTML = chip(hi, "최고", "hi") + chip(lo, "최저", "lo");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => select(+b.dataset.id, { focus: true }));
+}
+
+// 상세 예보: loc = { key, name, sub, lat, lon, tz } — 국내 도시와 세계 나라 모두 같은 화면을 씀
+async function loadDetail(loc) {
+  const hit = detailCache.get(loc.key);
+  if (hit && Date.now() - hit.t < DETAIL_TTL) return hit.data;
+  const params = new URLSearchParams({
+    latitude: loc.lat, longitude: loc.lon,
+    current: "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,is_day",
+    hourly: "temperature_2m,weather_code,precipitation_probability,is_day",
+    daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max",
+    timezone: loc.tz || "Asia/Seoul", forecast_days: "7", wind_speed_unit: "ms",
+  });
+  const data = await apiGet(params, 1);
+  detailCache.set(loc.key, { t: Date.now(), data });
+  return data;
+}
+// 세계 모드: 상세 창 오른쪽 위 국기 (불러오지 못하면 숨김)
+const flagHtml = loc => loc.flag
+  ? `<img class="flag" src="${FLAG_URL(loc.flag)}" alt="${loc.country || ""} 국기" onerror="this.remove()">` : "";
+const cityLoc = c => ({ key: "kr" + c.id, name: c.name, sub: PROV[c.prov].name, lat: c.lat, lon: c.lon });
+
+// ───────── 선택 / 상세 ─────────
+let detailKey = null;
+async function showDetail(loc) {
+  detailKey = loc.key;
+  const el = document.getElementById("detail");
+  el.innerHTML = `${flagHtml(loc)}<h2>${loc.name}</h2><div class="prov-name">${loc.sub}</div><div class="muted" style="margin-top:12px">불러오는 중…</div>`;
+  try {
+    const d = await loadDetail(loc);
+    if (detailKey === loc.key) renderDetail(loc, d);
+  } catch (e) {
+    const msg = /429/.test(e.message) ? "날씨 서버의 요청 한도를 잠시 넘었습니다. 1분쯤 뒤 새로고침하세요." : e.message;
+    if (detailKey === loc.key) el.innerHTML += `<div class="err">상세 예보를 불러오지 못했습니다: ${msg}</div>`;
+  }
+}
+async function select(id, { focus = false } = {}) {
+  selected = id;
+  drawMarkers();
+  renderList();
+  if (focus) focusCity(CITIES[id]);
+  showDetail(cityLoc(CITIES[id]));
+}
+
+function renderDetail(city, d) {
+  const c = d.current, w = wmo(c.weather_code, c.is_day), dl = d.daily;
+  const time = s => s.slice(11, 16);
+  const nowIdx = Math.max(0, d.hourly.time.findIndex(t => t >= c.time.slice(0, 13)));
+  const hours = d.hourly.time.slice(nowIdx, nowIdx + 24).map((t, k) => {
+    const j = nowIdx + k, hw = wmo(d.hourly.weather_code[j], d.hourly.is_day[j]);
+    return `<div class="hour"><div>${k === 0 ? "지금" : t.slice(11, 13) + "시"}</div>
+      <div class="i" title="${hw.desc}">${hw.icon}</div><div><b>${r(d.hourly.temperature_2m[j])}°</b></div>
+      <div class="p">💧${d.hourly.precipitation_probability[j] ?? 0}%</div></div>`;
+  }).join("");
+  const weekMin = Math.min(...dl.temperature_2m_min), weekMax = Math.max(...dl.temperature_2m_max);
+  const span = Math.max(1, weekMax - weekMin);
+  const days = dl.time.map((t, j) => {
+    const dw = wmo(dl.weather_code[j]);
+    const date = new Date(t + "T00:00:00");
+    const label = j === 0 ? "오늘" : `${date.getMonth() + 1}/${date.getDate()} (${DAYS[date.getDay()]})`;
+    const left = (dl.temperature_2m_min[j] - weekMin) / span * 100;
+    const width = (dl.temperature_2m_max[j] - dl.temperature_2m_min[j]) / span * 100;
+    return `<div class="day"><div>${label}</div><div title="${dw.desc}">${dw.icon}</div>
+      <div class="bar"><span style="left:${left}%;width:${width}%"></span></div>
+      <div class="p">💧${dl.precipitation_probability_max[j] ?? 0}%</div>
+      <div class="lo">${r(dl.temperature_2m_min[j])}°</div><div class="hi">${r(dl.temperature_2m_max[j])}°</div></div>`;
+  }).join("");
+  document.getElementById("detail").innerHTML = `
+    ${flagHtml(city)}<h2>${city.name}</h2><div class="prov-name">${city.sub}</div>
+    <div class="now"><span class="icon">${w.icon}</span>
+      <div><div class="big">${r(c.temperature_2m)}°</div><div class="desc">${w.desc} · 체감 ${r(c.apparent_temperature)}°</div></div></div>
+    <div class="stats">
+      <div class="stat"><div class="k">최고 / 최저</div><div class="v"><span class="hi">${r(dl.temperature_2m_max[0])}°</span> / <span class="lo">${r(dl.temperature_2m_min[0])}°</span></div></div>
+      <div class="stat"><div class="k">습도</div><div class="v">${c.relative_humidity_2m}%</div></div>
+      <div class="stat"><div class="k">바람</div><div class="v">${windDir(c.wind_direction_10m)} ${c.wind_speed_10m.toFixed(1)}m/s</div></div>
+      <div class="stat"><div class="k">강수량</div><div class="v">${c.precipitation}mm</div></div>
+      <div class="stat"><div class="k">자외선 최대</div><div class="v">${dl.uv_index_max[0]?.toFixed(1) ?? "-"}</div></div>
+      <div class="stat"><div class="k">일출 / 일몰</div><div class="v">${time(dl.sunrise[0])} / ${time(dl.sunset[0])}</div></div>
+    </div>
+    <h3>시간별 예보</h3><div class="hourly">${hours}</div>
+    <h3>7일 예보</h3><div>${days}</div>`;
+}
+
+// ───────── 목록: 시·도별 한 줄 요약, 누르면 그 시·도 도시들이 펼쳐짐 ─────────
+const openGroups = new Set();
+function renderList() {
+  const el = document.getElementById("listView");
+  if (el.hidden || !overview.length) return;
+  const q = document.getElementById("search").value.trim();
+  const groups = [{ id: "metro", name: "특별·광역시", keys: METRO },
+                  ...window.PROVINCES.filter(p => !METRO.includes(p.key)).map(p => ({ id: p.key, name: p.name, keys: [p.key], north: p.north }))];
+  let html = `<div class="lhead"><span>지역</span><span></span><span>평균</span><span>최저 ~ 최고</span><span></span></div>`;
+  let northSep = false;
+  for (const g of groups) {
+    const list = CITIES.filter(c => g.keys.includes(c.prov) && (!q || c.name.includes(q) || PROV[c.prov].name.includes(q)))
+                       .sort((a, b) => g.keys.indexOf(a.prov) - g.keys.indexOf(b.prov) || a.rank - b.rank || a.id - b.id);
+    if (!list.length) continue;
+    if (g.north && !northSep) { html += `<div class="lsep">이북5도</div>`; northSep = true; }
+    const temps = list.map(c => overview[c.id].temp);
+    const avg = temps.reduce((s, t) => s + t, 0) / temps.length;
+    const rep = overview[list[0].id], w = wmo(rep.code, rep.isDay); // 대표 도시(도청 소재지 등)의 날씨
+    const open = openGroups.has(g.id) || !!q; // 검색 중에는 모두 펼침
+    html += `<button class="prow${open ? " open" : ""}" data-g="${g.id}">
+      <span class="pn">${g.name}</span><span title="${list[0].name} ${w.desc}">${w.icon}</span>
+      <span class="pt">${r(avg)}°</span>
+      <span class="pr"><span class="lo">${r(Math.min(...temps))}°</span> ~ <span class="hi">${r(Math.max(...temps))}°</span></span>
+      <span class="pc">${list.length}곳 <span class="chev">›</span></span></button>`;
+    if (open) html += `<div class="pcities">` + list.map(c => {
+      const o = overview[c.id], cw = wmo(o.code, o.isDay);
+      return `<button class="chip${c.id === selected ? " active" : ""}" data-id="${c.id}" title="${cw.desc} · 최고 ${r(o.max)}° 최저 ${r(o.min)}°">
+        ${c.name} <span>${cw.icon}</span><b style="color:${tempColor(o.temp)}">${r(o.temp)}°</b></button>`;
+    }).join("") + `</div>`;
+  }
+  el.innerHTML = html.includes("prow") ? html : `<div class="muted" style="padding:12px 0">검색 결과가 없습니다.</div>`;
+  el.querySelectorAll(".prow").forEach(b => b.onclick = () => {
+    const id = b.dataset.g;
+    openGroups.has(id) ? openGroups.delete(id) : openGroups.add(id);
+    renderList();
+  });
+  el.querySelectorAll(".chip").forEach(b => b.onclick = () => select(+b.dataset.id));
+}
+
+// ───────── 지도 ─────────
+const svg = document.getElementById("map");
+const polys = g => !g ? [] : g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+const MAP_W = 1000, PAD = 20;
+let proj, unproj, full, vb, raf = 0, landD = "";
+// 지도 단계: topView = 'all'(한반도) | 'south'(남한), level = 시·도 key(2차) | null(1차)
+let topView = "all", level = null, animating = false, anim = 0, animTimer = 0;
+let heatOn = false, heatDirty = true, grid = null; // grid: HEAT_GRID 점 순서의 기온
+try { heatOn = localStorage.getItem("kw_heat") === "1"; } catch {}
+
+(function setupMap() {
+  let minX = 180, maxX = -180, minY = 90, maxY = -90;
+  const scan = ([x, y]) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); };
+  GEO.features.forEach(f => polys(f.geometry).forEach(p => p.forEach(r => r.forEach(scan))));
+  CITIES.forEach(c => scan([c.lon, c.lat]));
+  const k = Math.cos((minY + maxY) / 2 * Math.PI / 180);
+  const s = (MAP_W - PAD * 2) / ((maxX - minX) * k);
+  proj = (lon, lat) => [PAD + (lon - minX) * k * s, PAD + (maxY - lat) * s];
+  unproj = (x, y) => [minX + (x - PAD) / (k * s), maxY - (y - PAD) / s];
+  full = { x: 0, y: 0, w: MAP_W, h: (maxY - minY) * s + PAD * 2 };
+  vb = { ...full };
+  CITIES.forEach(c => [c.x, c.y] = proj(c.lon, c.lat));
+
+  const toPath = rings => rings.map(r => "M" + r.map(c => proj(c[0], c[1]).map(v => v.toFixed(1)).join(",")).join("L") + "Z").join("");
+  const ds = GEO.features.map(f => polys(f.geometry).map(toPath).join(""));
+  landD = ds.join("");
+  document.getElementById("land").innerHTML = GEO.features.map((f, i) => {
+    const p = PROV[f.properties.name];
+    return `<path class="prov" data-key="${f.properties.name}" d="${ds[i]}"><title>${p ? p.name : ""}</title></path>`;
+  }).join("");
+
+  // 남한 보기용: 휴전선, 북쪽 음영(도 경계 없이 육지 전체를 한 덩어리로), 남·북 잘라내기 영역
+  const line = pts => "M" + pts.map(([lon, lat]) => proj(lon, lat).map(v => v.toFixed(1)).join(",")).join("L");
+  document.getElementById("mdl").setAttribute("d", line(MDL));
+  // 음영: 이북5도는 통째로, 경기·강원은 휴전선 이북 부분만(northClip)
+  document.getElementById("shadeN").setAttribute("d", ds.filter((_, i) => PROV[GEO.features[i].properties.name].north).join(""));
+  document.getElementById("shade").setAttribute("d", ds.filter((_, i) => SPLIT.includes(GEO.features[i].properties.name)).join(""));
+  document.getElementById("southClipPath").setAttribute("d", line(SOUTH_POLY) + "Z");
+  document.getElementById("northClipPath").setAttribute("d", line(NORTH_POLY) + "Z");
+  const [lx, ly] = proj(127.55, 38.36);
+  const lbl = document.getElementById("mdlLabel");
+  lbl.setAttribute("x", lx); lbl.setAttribute("y", ly); lbl.setAttribute("text-anchor", "middle");
+  const heat = document.getElementById("heat");
+  heat.setAttribute("x", full.x); heat.setAttribute("y", full.y);
+  heat.setAttribute("width", full.w); heat.setAttribute("height", full.h);
+
+  // 범례: 2°C 계단색
+  const stops = [];
+  for (let t = T_MIN; t < T_MAX; t += BAND) {
+    const [a, b] = [(t - T_MIN) / (T_MAX - T_MIN) * 100, (t + BAND - T_MIN) / (T_MAX - T_MIN) * 100];
+    const [R, G, B] = heatRgb(t + 0.01);
+    stops.push(`rgb(${R},${G},${B}) ${a}% ${b}%`);
+  }
+  document.querySelectorAll(".legend .scale").forEach(el => el.style.background = `linear-gradient(90deg, ${stops.join(",")})`);
+  setViewBox(vb);
+})();
+
+// 기온 분포: 도시 위치가 아니라 한반도 전역의 고른 격자(약 35km 간격, HEAT_GRID)에서 기온을 받아
+// 쌍선형 보간으로 칠하고, 캔버스 단계에서 육지 모양으로 잘라 냄(지도에 clip-path를 쓰지 않아 가벼움)
+const HG = window.HEAT_GRID;
+const GRID_TTL = 2 * 60 * 60 * 1000; // 격자점 약 350개 — 무료 한도(하루 1만 건)를 고려해 2시간마다
+async function loadGrid(force = false) {
+  if (!HG) return;
+  const key = HG.pts.length + ":" + HG.step;
+  const cached = cacheGet("kw_grid_v1");
+  if (!force && cached && cached.key === key && Date.now() - cached.t < GRID_TTL) { grid = cached.data; heatDirty = true; return; }
+  const pts = HG.pts.map(([i, j]) => [HG.lat0 + j * HG.step, HG.lon0 + i * HG.step]);
+  const chunks = [];
+  for (let n = 0; n < pts.length; n += CHUNK) chunks.push(pts.slice(n, n + CHUNK));
+  const res = await Promise.all(chunks.map(async list => {
+    const params = new URLSearchParams({
+      latitude: list.map(p => p[0].toFixed(3)).join(","), longitude: list.map(p => p[1].toFixed(3)).join(","),
+      current: "temperature_2m", timezone: "Asia/Seoul",
+    });
+    const j = await apiGet(params, list.length);
+    return (Array.isArray(j) ? j : [j]).map(d => d.current.temperature_2m);
+  }));
+  grid = res.flat();
+  cacheSet("kw_grid_v1", { t: Date.now(), key, data: grid });
+  heatDirty = true;
+}
+// Catmull-Rom 가중치
+const cr = t => { const t2 = t * t, t3 = t2 * t;
+  return [(-t3 + 2 * t2 - t) / 2, (3 * t3 - 5 * t2 + 2) / 2, (-3 * t3 + 4 * t2 + t) / 2, (t3 - t2) / 2]; };
+// 현재 보이는 범위(view)만 화면 해상도로 그림 → 도 단위로 확대해도 선명함
+let heatView = null;
+function buildHeat(view = heatView || vb) {
+  if (!grid) return;
+  heatView = view;
+  const { nx, ny, lon0, lat0, step } = HG;
+  const G = new Float32Array(nx * ny).fill(NaN);
+  HG.pts.forEach(([i, j], n) => { if (grid[n] != null) G[j * nx + i] = grid[n]; });
+  // 빈 격자(바다 쪽)를 주변 평균으로 2겹 채워 해안에서도 쌍3차 보간이 되게 함
+  for (let pass = 0; pass < 2; pass++) {
+    const F = G.slice();
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      if (!Number.isNaN(G[j * nx + i])) continue;
+      let s = 0, n = 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+        const v = G[jj * nx + ii];
+        if (!Number.isNaN(v)) { s += v; n++; }
+      }
+      if (n) F[j * nx + i] = s / n;
+    }
+    G.set(F);
+  }
+  const box = svg.getBoundingClientRect();
+  const dpr = 1; // 보간이 매끄러워 1배로도 충분, 계산량 절약
+  const ppu = Math.min(box.width / view.w, box.height / view.h) || 1;
+  const Wc = Math.max(200, Math.min(2000, Math.round(view.w * ppu * dpr)));
+  const Hc = Math.max(200, Math.min(2400, Math.round(view.h * ppu * dpr)));
+  const cv = document.createElement("canvas");
+  cv.width = Wc; cv.height = Hc;
+  const ctx = cv.getContext("2d");
+  // 1) 육지 모양을 먼저 그려 투명도(가장자리 부드럽게)를 얻고, 육지 픽셀만 계산
+  ctx.setTransform(Wc / view.w, 0, 0, Hc / view.h, -view.x * Wc / view.w, -view.y * Hc / view.h);
+  ctx.fill(landPath || (landPath = new Path2D(landD)));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const img = ctx.getImageData(0, 0, Wc, Hc), D = img.data;
+  const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny) ? NaN : G[j * nx + i];
+  // 투영이 선형이라 경도는 열(px)에만, 위도는 행(py)에만 의존 → 미리 계산
+  const colI = new Int32Array(Wc), colU = new Float32Array(Wc), colW = [];
+  for (let px = 0; px < Wc; px++) {
+    const fx = (unproj(view.x + (px + .5) * view.w / Wc, 0)[0] - lon0) / step;
+    colI[px] = Math.floor(fx); colU[px] = fx - colI[px]; colW[px] = cr(colU[px]);
+  }
+  const colorCache = new Map();
+  const color = t => { const b = bandOf(t); let c = colorCache.get(b); if (!c) colorCache.set(b, c = heatRgb(t)); return c; };
+  for (let py = 0; py < Hc; py++) {
+    const fy = (unproj(0, view.y + (py + .5) * view.h / Hc)[1] - lat0) / step;
+    const j0 = Math.floor(fy), v = fy - j0, wv = cr(v);
+    for (let px = 0; px < Wc; px++) {
+      const o = (py * Wc + px) * 4;
+      if (!D[o + 3]) continue; // 바다
+      const i0 = colI[px], u = colU[px], wu = colW[px];
+      // 쌍3차(Catmull-Rom) 보간 — 주변 4×4 격자가 모두 있을 때
+      let val = 0, ok = true;
+      for (let b = 0; b < 4 && ok; b++) {
+        let row = 0;
+        for (let a = 0; a < 4; a++) {
+          const t = at(i0 - 1 + a, j0 - 1 + b);
+          if (Number.isNaN(t)) { ok = false; break; }
+          row += wu[a] * t;
+        }
+        val += wv[b] * row;
+      }
+      if (!ok) {
+        // 가장자리: 네 꼭짓점 중 값이 있는 것만으로 쌍선형
+        let sw = 0, st = 0;
+        for (const [di, dj, w] of [[0, 0, (1 - u) * (1 - v)], [1, 0, u * (1 - v)], [0, 1, (1 - u) * v], [1, 1, u * v]]) {
+          const t = at(i0 + di, j0 + dj);
+          if (!Number.isNaN(t) && w > 0) { sw += w; st += w * t; }
+        }
+        if (!sw) { D[o + 3] = 0; continue; }
+        val = st / sw;
+      }
+      const c = color(val);
+      D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; // 투명도는 육지 모양 그대로
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const heat = document.getElementById("heat");
+  heat.setAttribute("href", cv.toDataURL());
+  heat.setAttribute("x", view.x); heat.setAttribute("y", view.y);
+  heat.setAttribute("width", view.w); heat.setAttribute("height", view.h);
+}
+let landPath = null;
+async function setHeat(on) {
+  heatOn = on;
+  try { localStorage.setItem("kw_heat", on ? "1" : "0"); } catch {}
+  if (on) {
+    try { await loadGrid(); } catch (e) {
+      const $err = document.getElementById("error");
+      $err.textContent = "기온 분포 자료를 불러오지 못했습니다: " + e.message; $err.hidden = false;
+    }
+    if (heatOn) buildHeat();
+  }
+  // 불러오는 사이에 다시 꺼졌을 수 있으므로 현재 상태(heatOn)로 반영
+  document.getElementById("heat").toggleAttribute("hidden", !heatOn); // SVG 요소는 .hidden 속성이 없음
+  document.getElementById("heatBtn").classList.toggle("on", heatOn);
+  svg.classList.toggle("heat", heatOn);
+}
+document.getElementById("heatBtn").onclick = () => setHeat(!heatOn);
+
+function setViewBox(v) { vb = v; svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`); }
+// 화면 → viewBox 배율 (preserveAspectRatio meet)
+function viewScale() {
+  const b = svg.getBoundingClientRect();
+  const ppu = Math.min(b.width / vb.w, b.height / vb.h) || 1;
+  return { b, ppu, ox: (b.width - vb.w * ppu) / 2, oy: (b.height - vb.h * ppu) / 2 };
+}
+const provPath = key => svg.querySelector(`.prov[data-key="${key}"]`);
+function fitBox(bx, by, bw, bh, pad) {
+  const b = svg.getBoundingClientRect();
+  const aspect = b.width && b.height ? b.width / b.height : full.w / full.h;
+  let w = bw * pad, h = bh * pad;
+  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  return { x: bx + bw / 2 - w / 2, y: by + bh / 2 - h / 2, w, h };
+}
+function boundsOf(keys, minW = 0) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const key of keys) {
+    const bb = provPath(key).getBBox();
+    x0 = Math.min(x0, bb.x); y0 = Math.min(y0, bb.y); x1 = Math.max(x1, bb.x + bb.width); y1 = Math.max(y1, bb.y + bb.height);
+  }
+  CITIES.filter(c => keys.includes(c.prov)).forEach(c => {
+    x0 = Math.min(x0, c.x); y0 = Math.min(y0, c.y); x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y);
+  });
+  if (x1 - x0 < minW) { const cx = (x0 + x1) / 2; x0 = cx - minW / 2; x1 = cx + minW / 2; }
+  if (y1 - y0 < minW) { const cy = (y0 + y1) / 2; y0 = cy - minW / 2; y1 = cy + minW / 2; }
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+const SOUTH_KEYS = window.PROVINCES.filter(p => !p.north).map(p => p.key);
+// 남한 모드에서 도를 누르면 휴전선 이남 부분에 맞춰 보여 줌 (경기·강원의 미수복 지역은 음영)
+function southBoundsOf(keys, minW = 0) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  for (const key of keys) {
+    const f = GEO.features.find(f => f.properties.name === key);
+    const split = SPLIT.includes(key);
+    polys(f.geometry).forEach(p => p[0].forEach(([lon, lat]) => { if (!split || inRing([lon, lat], SOUTH_POLY)) add(...proj(lon, lat)); }));
+    provCities(key).forEach(c => add(c.x, c.y));
+  }
+  if (x1 - x0 < minW) { const cx = (x0 + x1) / 2; x0 = cx - minW / 2; x1 = cx + minW / 2; }
+  if (y1 - y0 < minW) { const cy = (y0 + y1) / 2; y0 = cy - minW / 2; y1 = cy + minW / 2; }
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+// 지금 보기에서 표시할 도의 도시 (남한 모드에서는 휴전선 이남만)
+const provCities = key => CITIES.filter(c => c.prov === key && (topView !== "south" || c.south));
+function viewFor() {
+  if (level && topView === "south") return fitBox(...southBoundsOf([level], full.w / 14), 1.3);
+  if (level) return fitBox(...boundsOf([level], full.w / 14), 1.3);
+  if (topView === "south") return fitBox(...southBoundsOf(SOUTH_KEYS), 1.06);
+  return fitBox(full.x, full.y, full.w, full.h, 1.02);
+}
+function animateTo(target) {
+  cancelAnimationFrame(anim); clearTimeout(animTimer);
+  const from = { ...vb }, t0 = performance.now(), D = 380;
+  animating = true;
+  document.getElementById("marks").innerHTML = "";
+  const finish = () => {
+    if (!animating) return;
+    cancelAnimationFrame(anim); clearTimeout(animTimer);
+    setViewBox(target); animating = false; drawMarkers();
+    if (heatOn && grid) buildHeat(target); // 새 범위에 맞춰 선명하게 다시 그림
+  };
+  const step = now => {
+    const t = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - t, 3);
+    if (t >= 1) return finish();
+    setViewBox({ x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e,
+                 w: from.w + (target.w - from.w) * e, h: from.h + (target.h - from.h) * e });
+    anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+  animTimer = setTimeout(finish, D + 100); // 탭이 백그라운드라 rAF가 멈춰도 마무리
+}
+function updateView() {
+  svg.querySelectorAll(".prov").forEach(p => {
+    const k = p.dataset.key;
+    p.classList.toggle("sel", k === level);
+    p.classList.toggle("dim", !!level && k !== level);
+  });
+  // 남한 보기: 휴전선 이남만 도 경계를 그리고, 이북은 경계 없이 음영 처리
+  const southMode = topView === "south"; // 도를 눌러 들어가도 유지
+  document.getElementById("southDeco").toggleAttribute("hidden", !southMode);
+  // 이북5도는 통째로 숨기고(음영만), 경기·강원은 휴전선 이남만 잘라서 표시
+  svg.querySelectorAll(".prov").forEach(p => {
+    const k = p.dataset.key;
+    p.classList.toggle("off", !!(southMode && PROV[k].north)); // undefined면 toggle이 '뒤집기'가 되므로 boolean으로
+    if (southMode && SPLIT.includes(k)) p.setAttribute("clip-path", "url(#southClip)"); else p.removeAttribute("clip-path");
+  });
+  renderExtremes();
+  document.getElementById("seg").hidden = !!level;
+  document.getElementById("back").hidden = !level;
+  const $t = document.getElementById("crumbText");
+  $t.hidden = !level;
+  if (level) $t.textContent = `${PROV[level].name} · ${provCities(level).length}곳`;
+  document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.top === topView));
+  animateTo(viewFor());
+}
+function setLevel(key) {
+  if (key && !level) pushLayer("level"); // 안드로이드 뒤로가기로 전체 지도로 돌아오게
+  level = key || null;
+  updateView();
+  // 다른 도의 도시가 선택돼 있으면 이 도의 대표 도시로 바꿈
+  if (level && CITIES[selected].prov !== level) {
+    const rep = provCities(level).sort((a, b) => a.rank - b.rank || a.id - b.id)[0];
+    if (rep) select(rep.id);
+  }
+}
+function setTop(v) { topView = v; level = null; updateView(); }
+function focusCity(c) {
+  if (topView === "south" && !c.south) topView = "all"; // 이북 도시를 찾으면 한반도 보기로
+  if (level !== c.prov) setLevel(c.prov); else updateView();
+}
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => setTop(b.dataset.top));
+
+function drawMarkers() {
+  const g = document.getElementById("marks");
+  if (!overview.length || animating) { if (!overview.length) g.innerHTML = ""; return; }
+  const { ppu, ox, oy } = viewScale();
+  const L = 1 / ppu;
+  const sx = c => (c.x - vb.x) * ppu + ox, sy = c => (c.y - vb.y) * ppu + oy;
+  const { width: W, height: H } = svg.getBoundingClientRect();
+  // "휴전선" 글자는 화면에서 늘 같은 크기(12px)
+  const lbl = document.getElementById("mdlLabel");
+  lbl.setAttribute("font-size", 12 * L); lbl.setAttribute("stroke-width", 3 * L);
+  // 한반도: 주요 도시 / 남한: 남한의 주요 도시와 시 / 도: 그 도의 도시 전부
+  const pool = level ? provCities(level)
+             : topView === "south" ? CITIES.filter(c => c.south && (c.rank <= 2 || c.id === selected))
+             : CITIES.filter(c => c.rank === 1 || c.id === selected);
+  const order = pool.sort((a, b) => (b.id === selected) - (a.id === selected) || a.rank - b.rank || a.id - b.id);
+  const pts = order.map(c => [sx(c), sy(c)]);
+  // 지도 위에 떠 있는 버튼·범례 자리는 비워 둠
+  const boxes = [];
+  const s = svg.getBoundingClientRect();
+  document.querySelectorAll("#mapView .ovl").forEach(el => {
+    const a = el.getBoundingClientRect();
+    boxes.push([a.left - s.left - 4, a.top - s.top - 4, a.right - s.left + 4, a.bottom - s.top + 4]);
+  });
+  // 라벨 후보 위치(px): 제자리 → 가까운 위·아래·좌·우 → 대각선. 지시선 없이 살짝 비켜 놓음
+  const OFFS = [[0, 0], [0, -20], [0, 20], [30, 0], [-30, 0], [28, -18], [-28, -18], [28, 18], [-28, 18],
+                [0, -38], [0, 38], [56, 0], [-56, 0]];
+  const overlaps = b => boxes.some(o => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
+  const placed = [], dots = [];
+  order.forEach((c, i) => {
+    const [x, y] = pts[i];
+    for (const [dx, dy] of OFFS) {
+      const cx = x + dx, cy = y + dy;
+      const box = [cx - 28, cy - 12, cx + 28, cy + 27];
+      if (box[0] < 2 || box[1] < 2 || box[2] > W - 2 || box[3] > H - 2 || overlaps(box)) continue;
+      if (pts.some((p, j) => j !== i && p[0] > box[0] - 4 && p[0] < box[2] + 4 && p[1] > box[1] - 4 && p[1] < box[3] + 4)) continue;
+      boxes.push(box);
+      placed.push({ c, dx, dy });
+      return;
+    }
+    dots.push(c);
+  });
+
+  const dotSvg = dots.map(c => `<circle class="dot" data-id="${c.id}" cx="${c.x}" cy="${c.y}" r="${5 * L}" fill="${tempColor(overview[c.id].temp)}" stroke-width="${1.5 * L}"><title>${c.name} ${r(overview[c.id].temp)}°</title></circle>`).join("");
+  const labelSvg = placed.reverse().map(({ c, dx, dy }) => {
+    const o = overview[c.id], w = wmo(o.code, o.isDay);
+    return `<g class="mk${c.id === selected ? " active" : ""}" data-id="${c.id}" transform="translate(${c.x.toFixed(1)},${c.y.toFixed(1)}) scale(${L.toFixed(4)})">
+      <rect x="${dx - 27}" y="${dy - 11}" width="54" height="22" rx="11" stroke="${tempColor(o.temp)}"/>
+      <text x="${dx - 12}" y="${dy + 4.5}" text-anchor="middle" font-size="12">${w.icon}</text>
+      <text x="${dx + 11}" y="${dy + 4.5}" text-anchor="middle" font-size="12" font-weight="700">${r(o.temp)}°</text>
+      <text class="nm" x="${dx}" y="${dy + 24}" text-anchor="middle">${c.name}</text>
+      <title>${c.name} (${PROV[c.prov].name}) · ${w.desc} ${r(o.temp)}° · 최고 ${r(o.max)}° 최저 ${r(o.min)}°</title></g>`;
+  }).join("");
+  g.innerHTML = dotSvg + labelSvg;
+}
+
+// 클릭: 도시 → 상세 / 도 → 2차 화면 / 바다 → 1차 화면
+svg.addEventListener("click", e => {
+  const mk = e.target.closest("[data-id]");
+  if (mk) return select(+mk.dataset.id);
+  const pv = e.target.closest(".prov");
+  if (pv) { if (pv.dataset.key !== level) setLevel(pv.dataset.key); return; }
+  if (level) popLayer("level", () => setLevel(null));
+});
+document.getElementById("back").onclick = () => popLayer("level", () => setLevel(null));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && level && document.activeElement !== document.getElementById("search")) popLayer("level", () => setLevel(null));
+});
+new ResizeObserver(() => {
+  if (animating || !svg.getBoundingClientRect().width) return;
+  setViewBox(viewFor());
+  drawMarkers();
+  if (heatOn && grid) buildHeat(vb);
+}).observe(svg);
+
+// ───────── 세계 (지구본, 나라별 수도 날씨) ─────────
+// 국가 경계·수도: Natural Earth(공개 자료), 지구본 투영: d3 — 세계 탭을 처음 열 때만 불러옴
+const D3_URL = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js";
+const NE_URL = "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/";
+const WORLD_TTL = 60 * 60 * 1000;
+// countries: 나라(경계·이름), cities: 날씨 지점(도시), data: cities 순서의 날씨, ctemp: 나라별 평균 기온
+const W = { ready: null, countries: [], cities: [], data: null, ctemp: [], time: 0, sel: null,
+            rot: [-127.5, -30, 0], spin: true, dragging: false, raf: 0, zoom: 1 };
+const ZOOM_MIN = 1, ZOOM_MAX = 12;
+const prop = (p, k) => p[k] ?? p[k.toUpperCase()] ?? p[k.toLowerCase()];
+// 지도에 쓸 나라 이름 (자료의 공식 명칭 대신 흔히 쓰는 이름)
+const NAME_FIX = { ATA: "남극", CHN: "중국", TWN: "대만" };
+// 국명은 붙여 씀 (콩고 민주 공화국 → 콩고민주공화국)
+const countryName = (a3, raw) => (NAME_FIX[a3] || raw).replace(/\s+/g, "");
+// 도시 이름: 행정 접미사(직할시·특별시 등)를 떼고 흔히 쓰는 이름으로
+const CITY_FIX = { "도쿄도": "도쿄", "베이징시": "베이징", "상하이시": "상하이", "타이베이시": "타이베이", "교토시": "교토",
+                   "우루무치시": "우루무치", "청두시": "청두", "쿠웨이트 시": "쿠웨이트시티", "브뤼셀 시": "브뤼셀",
+                   "바티칸 시국": "바티칸", "과테말라 시티": "과테말라시티" };
+const cityName = raw => CITY_FIX[raw] || raw.replace(/(특별시|직할시|광역시|특별자치시)$/, "");
+// 국기 이미지 (flag-icons, ISO 2글자 코드)
+const FLAG_URL = cc => `https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/flags/4x3/${cc}.svg`;
+const loadScript = src => new Promise((ok, no) => {
+  const s = document.createElement("script");
+  s.src = src; s.onload = ok; s.onerror = () => no(new Error("지구본 라이브러리를 불러오지 못했습니다"));
+  document.head.appendChild(s);
+});
+const gsvg = document.getElementById("globe");
+let gProj, gPath;
+
+function initWorld() {
+  if (W.ready) return W.ready;
+  W.ready = (async () => {
+    if (!window.d3) await loadScript(D3_URL);
+    const [cj, pj] = await Promise.all(["ne_110m_admin_0_countries.geojson", "ne_110m_populated_places.geojson"]
+      .map(f => fetch(NE_URL + f).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })));
+    // 나라: 북한(PRK)은 대한민국(KOR)에 합침 (공유 경계를 지워 한 덩어리로)
+    const feats = cj.features;
+    const kor = feats.find(f => prop(f.properties, "ADM0_A3") === "KOR");
+    const prk = feats.find(f => prop(f.properties, "ADM0_A3") === "PRK");
+    if (kor && prk) kor.geometry = mergeGeoms(kor.geometry, prk.geometry);
+    // 크림반도: 기본 자료에는 러시아로 되어 있어 우크라이나로 옮김
+    const rus = feats.find(f => prop(f.properties, "ADM0_A3") === "RUS");
+    const ukr = feats.find(f => prop(f.properties, "ADM0_A3") === "UKR");
+    if (rus && ukr) {
+      const rp = polys(rus.geometry);
+      const ci = rp.findIndex(p => d3.geoContains({ type: "Polygon", coordinates: p }, [34.1, 45.0]));
+      if (ci >= 0 && d3.geoArea({ type: "Polygon", coordinates: rp[ci] }) < 0.001) {
+        ukr.geometry = mergeGeoms(ukr.geometry, { type: "Polygon", coordinates: rp[ci] });
+        rus.geometry = { type: "MultiPolygon", coordinates: rp.filter((_, i) => i !== ci) };
+      }
+    }
+    W.countries = feats.filter(f => f !== prk).map((f, i) => {
+      const p = f.properties, a3 = prop(p, "ADM0_A3");
+      const lx = +prop(p, "LABEL_X"), ly = +prop(p, "LABEL_Y");
+      const iso2 = String(prop(p, "ISO_A2_EH") || prop(p, "ISO_A2") || "");
+      return { i, f, a3, area: d3.geoArea(f), cities: [],
+               iso2: /^[A-Z]{2}$/.test(iso2) ? iso2.toLowerCase() : null,
+               name: countryName(a3, prop(p, "NAME_KO") || prop(p, "NAME")),
+               label: Number.isFinite(lx) && Number.isFinite(ly) && a3 !== "ATA" ? [lx, ly] : d3.geoCentroid(f) };
+    });
+    const byA3 = Object.fromEntries(W.countries.map(c => [c.a3, c]));
+    const findCountry = (a3, lon, lat) => byA3[a3 === "PRK" ? "KOR" : a3] || W.countries.find(c => d3.geoContains(c.f, [lon, lat]));
+
+    // 도시: Natural Earth 주요 도시(수도 포함) + 보강 목록(world_cities.js), 0.5° 안쪽 중복 제거
+    const cities = [];
+    const add = (name, lon, lat, a3, cap, pop) => {
+      if (cities.some(c => Math.abs(c.lon - lon) < 0.5 && Math.abs(c.lat - lat) < 0.5)) return;
+      const country = findCountry(a3, lon, lat);
+      if (!country) return;
+      cities.push({ name, lon, lat, country, cap, pop });
+    };
+    pj.features
+      .sort((a, b) => (+prop(b.properties, "ADM0CAP") || 0) - (+prop(a.properties, "ADM0CAP") || 0))
+      .forEach(f => {
+        const p = f.properties, [lon, lat] = f.geometry.coordinates;
+        const a3 = prop(p, "ADM0_A3");
+        add(cityName(prop(p, "NAME_KO") || prop(p, "NAME")), lon, lat, a3, +prop(p, "ADM0CAP") === 1 && a3 !== "PRK", +prop(p, "POP_MAX") || 0);
+      });
+    (window.WORLD_EXTRA || []).forEach(([name, lat, lon, a3]) => add(name, lon, lat, a3, false, 0));
+    // 도시가 하나도 없는 나라는 영토 중앙에 지점 하나
+    W.countries.forEach(c => { if (!cities.some(x => x.country === c)) cities.push({ name: c.name, lon: c.label[0], lat: c.label[1], country: c, cap: false, pop: 0 }); });
+    cities.forEach((c, i) => { c.i = i; c.country.cities.push(c); });
+    W.cities = cities;
+    buildGlobe();
+    await loadWorldWeather();
+  })();
+  W.ready.catch(() => { W.ready = null; });
+  return W.ready;
+}
+
+// 두 나라 경계를 하나로: 가장 많이 맞닿은 외곽 링끼리 공유 변을 지우고 다시 이음 (실패하면 단순 합침)
+function mergeGeoms(a, b) {
+  const pa = polys(a).map(p => p.map(r => r.slice())), pb = polys(b);
+  const key = c => c[0] + "," + c[1];
+  let best = null, bestN = 1;
+  pa.forEach((p, i) => pb.forEach((q, j) => {
+    const s = new Set(p[0].map(key));
+    const n = q[0].filter(c => s.has(key(c))).length;
+    if (n > bestN) { bestN = n; best = [i, j]; }
+  }));
+  if (!best) return { type: "MultiPolygon", coordinates: [...pa, ...pb] };
+  const area = ring => ring.reduce((s, [x1, y1], i) => { const [x2, y2] = ring[(i + 1) % ring.length]; return s + x1 * y2 - x2 * y1; }, 0);
+  const open = r => key(r[0]) === key(r[r.length - 1]) ? r.slice(0, -1) : r.slice();
+  let A = open(pa[best[0]][0]), B = open(pb[best[1]][0]);
+  if (Math.sign(area(A)) !== Math.sign(area(B))) B.reverse();
+  const edges = [];
+  for (const R of [A, B]) R.forEach((p, i) => edges.push([p, R[(i + 1) % R.length]]));
+  const und = e => [key(e[0]), key(e[1])].sort().join("|");
+  const cnt = new Map();
+  edges.forEach(e => cnt.set(und(e), (cnt.get(und(e)) || 0) + 1));
+  const next = new Map(edges.filter(e => cnt.get(und(e)) === 1).map(e => [key(e[0]), e]));
+  const rings = [];
+  while (next.size) {
+    const [sk, first] = next.entries().next().value;
+    const ring = [first[0]];
+    let e = first; next.delete(sk);
+    while (key(e[1]) !== sk) {
+      ring.push(e[1]);
+      e = next.get(key(e[1]));
+      if (!e) return { type: "MultiPolygon", coordinates: [...pa, ...pb] };
+      next.delete(key(e[0]));
+    }
+    ring.push(ring[0]);
+    rings.push(ring);
+  }
+  rings.sort((p, q) => Math.abs(area(q)) - Math.abs(area(p)));
+  const merged = [rings[0], ...rings.slice(1)];
+  const rest = [...pa.filter((_, i) => i !== best[0]), ...pb.filter((_, j) => j !== best[1])];
+  return { type: "MultiPolygon", coordinates: [merged, ...rest] };
+}
+
+async function loadWorldWeather(force = false) {
+  const key = W.cities.map(c => c.name).join();
+  const cached = cacheGet("kw_world_v2");
+  if (!force && cached && cached.key === key && Date.now() - cached.t < WORLD_TTL) {
+    W.data = cached.data; W.time = cached.t;
+  } else {
+    const chunks = [];
+    for (let i = 0; i < W.cities.length; i += CHUNK) chunks.push(W.cities.slice(i, i + CHUNK));
+    const res = await Promise.all(chunks.map(async list => {
+      const params = new URLSearchParams({
+        latitude: list.map(c => c.lat.toFixed(3)).join(","), longitude: list.map(c => c.lon.toFixed(3)).join(","),
+        current: "temperature_2m,weather_code,is_day", daily: "temperature_2m_max,temperature_2m_min",
+        timezone: "auto", forecast_days: "1",
+      });
+      const j = await apiGet(params, list.length);
+      return Array.isArray(j) ? j : [j];
+    }));
+    W.data = res.flat().map(d => ({ temp: d.current.temperature_2m, code: d.current.weather_code, isDay: d.current.is_day,
+                                    max: d.daily.temperature_2m_max[0], min: d.daily.temperature_2m_min[0] }));
+    W.time = Date.now();
+    cacheSet("kw_world_v2", { t: W.time, key, data: W.data });
+  }
+  // 나라 색 = 그 나라 도시들의 평균 기온
+  W.ctemp = W.countries.map(c => c.cities.reduce((s, x) => s + W.data[x.i].temp, 0) / c.cities.length);
+  renderGlobe();
+  renderExtremes();
+}
+
+function buildGlobe() {
+  gProj = d3.geoOrthographic().clipAngle(90).precision(0.5);
+  gPath = d3.geoPath(gProj);
+  const s = d3.select(gsvg);
+  s.selectAll("*").remove();
+  s.append("path").attr("class", "sphere").datum({ type: "Sphere" });
+  s.append("path").attr("class", "grat").datum(d3.geoGraticule10());
+  s.append("g").selectAll("path").data(W.countries).join("path")
+    .attr("class", "country")
+    .on("click", (e, c) => selectCountry(c))
+    .append("title");
+  s.append("g").attr("id", "cnames");
+  s.append("g").attr("id", "wmarks");
+  // 한 손가락/마우스: 회전, 두 손가락: 확대·축소(핀치)
+  const touches = new Map();
+  let pinch = null;
+  const spread = () => { const [a, b] = [...touches.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]) || 1; };
+  s.call(d3.drag()
+    .on("start", e => {
+      W.dragging = true; gsvg.classList.add("dragging");
+      if (e.identifier !== "mouse") touches.set(e.identifier, [e.x, e.y]);
+      if (touches.size === 2) pinch = { d: spread(), z: W.zoom };
+    })
+    .on("drag", e => {
+      if (touches.has(e.identifier)) touches.set(e.identifier, [e.x, e.y]);
+      if (W.spin) setSpin(false);
+      if (touches.size >= 2 && pinch) return setZoom(pinch.z * spread() / pinch.d);
+      const k = 70 / gProj.scale();
+      W.rot[0] += e.dx * k; W.rot[1] = Math.max(-85, Math.min(85, W.rot[1] - e.dy * k));
+      renderGlobe();
+    })
+    .on("end", e => {
+      touches.delete(e.identifier);
+      if (touches.size < 2) pinch = null;
+      if (!touches.size) { W.dragging = false; gsvg.classList.remove("dragging"); }
+    }));
+  gsvg.addEventListener("wheel", e => { e.preventDefault(); setZoom(W.zoom * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  d3.select(gsvg).on("click", e => { const m = e.target.closest("[data-w]"); if (m) selectWorld(W.cities[+m.dataset.w], true); });
+  sizeGlobe();
+}
+function sizeGlobe() {
+  if (!gProj) return;
+  const b = gsvg.getBoundingClientRect();
+  if (!b.width) return;
+  gsvg.setAttribute("width", b.width); gsvg.setAttribute("height", b.height);
+  gProj.scale((Math.min(b.width, b.height) / 2 - 18) * W.zoom).translate([b.width / 2, b.height / 2]);
+}
+function setZoom(z) {
+  W.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  sizeGlobe(); renderGlobe();
+}
+document.getElementById("gzin").onclick = () => setZoom(W.zoom * 1.5);
+document.getElementById("gzout").onclick = () => setZoom(W.zoom / 1.5);
+document.getElementById("gzreset").onclick = () => setZoom(1);
+const worldColor = t => { const [R, G, B] = heatRgb(t); return `rgb(${R},${G},${B})`; };
+function renderGlobe() {
+  if (!gProj) return;
+  gProj.rotate(W.rot);
+  const s = d3.select(gsvg);
+  s.select(".sphere").attr("d", gPath);
+  s.select(".grat").attr("d", gPath);
+  const selCountry = W.sel && W.sel.country;
+  s.selectAll(".country")
+    .attr("d", c => gPath(c.f))
+    .attr("fill", c => W.data ? worldColor(W.ctemp[c.i]) : "var(--land)")
+    .classed("sel", c => c === selCountry)
+    .select("title").text(c => W.data ? `${c.name} · 도시 ${c.cities.length}곳 평균 ${r(W.ctemp[c.i])}°` : c.name);
+  drawCountryNames();
+  drawWorldMarkers();
+}
+// 나라 이름: 지구본 표면에 붙여 그림 — 이름 위치에서 지구 표면의 동·북 방향이 화면에 투영된 모양(야코비안)을
+// 글자의 변형 행렬로 써서, 가장자리로 갈수록 눌리고 기울어지게 함
+function drawCountryNames() {
+  const g = document.getElementById("cnames");
+  if (!g) return;
+  const center = [-W.rot[0], -W.rot[1]];
+  const R = gProj.scale(), k = R * Math.PI / 180;
+  const b = gsvg.getBoundingClientRect();
+  let html = "";
+  for (const c of W.countries) {
+    const dist = d3.geoDistance(c.label, center);
+    if (dist > 1.4) continue;
+    // 영토 한 변의 대략 길이(정면 기준 px)로 글자 크기, 이름이 영토 폭을 넘지 않게
+    const size = Math.sqrt(c.area) * R;
+    const fs = Math.min(size / 4.2, size * 1.25 / (c.name.length * 0.95), 48);
+    if (fs < 7) continue;
+    const [lon, lat] = c.label;
+    const p0 = gProj(c.label);
+    if (!p0 || p0[0] < -200 || p0[1] < -200 || p0[0] > b.width + 200 || p0[1] > b.height + 200) continue;
+    const d = 0.5, cl = Math.max(0.15, Math.cos(lat * Math.PI / 180));
+    const pe = gProj([lon + d / cl, lat]), pn = gProj([lon, Math.min(89.9, lat + d)]);
+    if (!pe || !pn) continue;
+    const ex = (pe[0] - p0[0]) / (k * d), ey = (pe[1] - p0[1]) / (k * d);
+    const nx = (pn[0] - p0[0]) / (k * d), ny = (pn[1] - p0[1]) / (k * d);
+    const op = (0.4 * Math.min(1, Math.cos(dist) * 1.6)).toFixed(2); // 가장자리는 옅게
+    html += `<text class="cname" font-size="${fs.toFixed(1)}" fill-opacity="${op}"
+      transform="matrix(${ex.toFixed(4)} ${ey.toFixed(4)} ${(-nx).toFixed(4)} ${(-ny).toFixed(4)} ${p0[0].toFixed(1)} ${p0[1].toFixed(1)})">${c.name}</text>`;
+  }
+  g.innerHTML = html;
+}
+// 보이는 반구의 도시만, 수도·큰 도시부터 겹치지 않게 라벨 (지시선 없음)
+function drawWorldMarkers() {
+  const g = document.getElementById("wmarks");
+  if (!W.data || !g) return;
+  const b = gsvg.getBoundingClientRect();
+  const center = [-W.rot[0], -W.rot[1]];
+  const boxes = [];
+  document.querySelectorAll("#worldView .ovl").forEach(el => {
+    const a = el.getBoundingClientRect();
+    boxes.push([a.left - b.left - 4, a.top - b.top - 4, a.right - b.left + 4, a.bottom - b.top + 4]);
+  });
+  // 우선순위: 선택 → 넓은 나라의 수도 → 수도 → 인구
+  const score = c => (c === W.sel ? 1e12 : 0) + (c.cap ? 1e9 + c.country.area * 1e8 : 0) + c.pop;
+  const order = [...W.cities].sort((a, c) => score(c) - score(a));
+  let html = "";
+  for (const c of order) {
+    if (d3.geoDistance([c.lon, c.lat], center) > 1.35) continue; // 가장자리는 생략
+    const [x, y] = gProj([c.lon, c.lat]);
+    if (x < -30 || y < -30 || x > b.width + 30 || y > b.height + 30) continue; // 확대해서 화면 밖
+    const box = [x - 28, y - 12, x + 28, y + 27];
+    if (boxes.some(o => box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) continue;
+    boxes.push(box);
+    const o = W.data[c.i], w = wmo(o.code, o.isDay);
+    html += `<g class="mk${c === W.sel ? " active" : ""}" data-w="${c.i}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+      <rect x="-27" y="-11" width="54" height="22" rx="11" stroke="${tempColor(o.temp)}"/>
+      <text x="-12" y="4.5" text-anchor="middle" font-size="12">${w.icon}</text>
+      <text x="11" y="4.5" text-anchor="middle" font-size="12" font-weight="700">${r(o.temp)}°</text>
+      <text class="nm" y="24" text-anchor="middle">${c.name}</text>
+      <title>${c.name} (${c.country.name}${c.cap ? " 수도" : ""}) · ${w.desc} ${r(o.temp)}° · 최고 ${r(o.max)}° 최저 ${r(o.min)}°</title></g>`;
+  }
+  g.innerHTML = html;
+}
+function setSpin(on) {
+  W.spin = on;
+  document.getElementById("spinBtn").classList.toggle("on", on);
+  cancelAnimationFrame(W.raf);
+  if (!on || tab !== "world") return;
+  let last = performance.now();
+  const step = now => {
+    if (!W.spin || tab !== "world") return;
+    if (!W.dragging && now - last > 33) { W.rot[0] += (now - last) * 0.004; last = now; renderGlobe(); }
+    W.raf = requestAnimationFrame(step);
+  };
+  W.raf = requestAnimationFrame(step);
+}
+document.getElementById("spinBtn").onclick = () => setSpin(!W.spin);
+function rotateTo(lon, lat) {
+  const from = [...W.rot], to = [-lon, Math.max(-60, Math.min(60, -lat)), 0];
+  while (to[0] - from[0] > 180) to[0] -= 360;
+  while (from[0] - to[0] > 180) to[0] += 360;
+  const t0 = performance.now(), D = 700;
+  const step = () => {
+    const t = Math.min(1, (performance.now() - t0) / D), e = 1 - Math.pow(1 - t, 3);
+    W.rot = [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e, 0];
+    renderGlobe();
+    if (t < 1) setTimeout(step, 16); // 탭이 백그라운드여도 끝까지 진행
+  };
+  step();
+}
+// 도시 선택 → 지구본을 그 도시로 돌리고 상세 예보(현지 시각)
+function selectWorld(c, rotate = false) {
+  W.sel = c;
+  if (rotate) { setSpin(false); rotateTo(c.lon, c.lat); } else renderGlobe();
+  showDetail({ key: "w" + c.i + c.name, name: c.name, sub: `${c.country.name}${c.cap ? " · 수도" : ""} · 현지 시각`,
+               lat: c.lat, lon: c.lon, tz: "auto", flag: c.country.iso2, country: c.country.name });
+}
+// 나라를 누르면 그 나라의 수도(없으면 첫 도시)
+function selectCountry(country) {
+  selectWorld(country.cities.find(c => c.cap) || country.cities[0], true);
+}
+function renderWorldExtremes(el) {
+  if (!W.data) { el.innerHTML = ""; return; }
+  let hi = W.cities[0], lo = W.cities[0];
+  for (const c of W.cities) {
+    if (W.data[c.i].temp > W.data[hi.i].temp) hi = c;
+    if (W.data[c.i].temp < W.data[lo.i].temp) lo = c;
+  }
+  const chip = (c, label, cls) => `<button data-w="${c.i}" title="${c.country.name} ${c.name}">
+    <span class="k">세계 ${label}</span><span>${c.name}</span><b class="${cls}">${r(W.data[c.i].temp)}°</b></button>`;
+  el.innerHTML = chip(hi, "최고", "hi") + chip(lo, "최저", "lo");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => selectWorld(W.cities[+b.dataset.w], true));
+}
+async function openWorld() {
+  const msg = document.getElementById("worldMsg");
+  if (!W.data) { msg.hidden = false; msg.textContent = "지구본을 불러오는 중…"; }
+  try {
+    await initWorld();
+    msg.hidden = true;
+    sizeGlobe(); renderGlobe(); renderExtremes();
+    const t = W.time ? new Date(W.time).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) : "";
+    if (t) document.getElementById("updated").textContent = "업데이트 " + t;
+    setSpin(W.spin);
+  } catch (e) {
+    msg.hidden = false;
+    msg.textContent = "세계 날씨를 불러오지 못했습니다: " + (/429/.test(e.message) ? "요청 한도 초과, 1분 뒤 다시 시도하세요" : e.message);
+  }
+}
+new ResizeObserver(() => { if (tab === "world") { sizeGlobe(); renderGlobe(); } }).observe(gsvg);
+
+// ───────── 탭 · 검색 ─────────
+// 탭: 한국(지도·목록) / 세계. tab 값은 "map" | "list" | "world"
+let tab = "map", koreaSub = "map";
+function setTab(name) {
+  if (name === "world" && tab !== "world") pushLayer("world");
+  tab = name;
+  if (name !== "world") koreaSub = name;
+  document.getElementById("tabKorea").classList.toggle("on", name !== "world");
+  document.getElementById("tabWorld").classList.toggle("on", name === "world");
+  document.getElementById("subTabs").hidden = name === "world";
+  document.getElementById("tabMap").classList.toggle("on", name === "map");
+  document.getElementById("tabList").classList.toggle("on", name === "list");
+  document.getElementById("mapView").hidden = name !== "map";
+  document.getElementById("listView").hidden = name !== "list";
+  document.getElementById("worldView").hidden = name !== "world";
+  $search.placeholder = name === "world" ? "나라·도시 검색 후 Enter" : "도시 검색 후 Enter";
+  if (name === "map") drawMarkers();
+  if (name === "list") renderList();
+  if (name === "world") {
+    openWorld();
+    if (W.sel) selectWorld(W.sel);
+  } else {
+    cancelAnimationFrame(W.raf);
+    if (detailKey && detailKey.startsWith("w")) select(selected);
+    if (overviewTime) document.getElementById("updated").textContent =
+      "업데이트 " + new Date(overviewTime).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  }
+  renderExtremes();
+}
+document.getElementById("tabKorea").onclick = () => { if (tab === "world") popLayer("world", () => setTab(koreaSub)); };
+document.getElementById("tabMap").onclick = () => setTab("map");
+document.getElementById("tabList").onclick = () => setTab("list");
+document.getElementById("tabWorld").onclick = () => setTab("world");
+
+const $search = document.getElementById("search");
+$search.addEventListener("input", () => { $search.classList.remove("miss"); renderList(); });
+$search.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const v = $search.value.trim();
+  if (!v) return;
+  if (tab === "world") {
+    // 도시 이름 → 나라 이름(그 나라 수도) 순서로 찾음
+    const city = W.cities.find(c => c.name === v) || W.cities.find(c => c.name.startsWith(v));
+    const country = W.countries.find(c => c.name === v) || W.countries.find(c => c.name.startsWith(v)) || W.countries.find(c => c.name.includes(v));
+    if (!city && !country) { $search.classList.add("miss"); return; }
+    $search.value = "";
+    return city ? selectWorld(city, true) : selectCountry(country);
+  }
+  const hit = CITIES.find(c => c.name === v) || CITIES.find(c => c.name.startsWith(v)) || CITIES.find(c => c.name.includes(v));
+  if (!hit) { $search.classList.add("miss"); return; }
+  $search.value = "";
+  select(hit.id, { focus: true });
+});
+
+document.getElementById("refresh").onclick = async () => {
+  detailCache.clear();
+  if (tab === "world" && W.countries.length) {
+    try { await loadWorldWeather(true); } catch {}
+    if (W.sel) selectWorld(W.sel);
+    return;
+  }
+  loadOverview(true); select(selected);
+  if (heatOn) { try { await loadGrid(true); buildHeat(); } catch {} }
+};
+
+// ───────── 휴대폰: 바텀시트 · 뒤로가기 · 앱 설치 ─────────
+const sheet = document.getElementById("sheet");
+const isPhone = () => matchMedia("(max-width: 760px)").matches;
+// 화면 '층'(도 화면, 세계 탭, 펼친 시트)마다 기록을 하나씩 쌓아, 안드로이드 뒤로가기가 앱을 닫지 않고 한 층씩 닫게 함
+function pushLayer(kind) { history.pushState({ nav: kind }, ""); }
+function popLayer(kind, close) {
+  if (history.state && history.state.nav === kind) history.back(); // popstate에서 닫힘
+  else close();
+}
+window.addEventListener("popstate", () => {
+  if (sheet.classList.contains("open")) return setSheet(false, true);
+  if (tab === "world") return setTab(koreaSub);
+  if (level) return setLevel(null);
+});
+function setSheet(open, fromPop = false) {
+  if (!isPhone()) return;
+  if (open === sheet.classList.contains("open")) return;
+  if (open) { pushLayer("sheet"); sheet.classList.add("open"); sheet.scrollTop = 0; }
+  else if (!fromPop && history.state && history.state.nav === "sheet") history.back();
+  else sheet.classList.remove("open");
+}
+// 손잡이·제목을 누르면 펼치기/접기, 위로 쓸면 펼치고 아래로 쓸면(맨 위에서) 접기
+sheet.addEventListener("click", e => {
+  if (e.target.closest(".grab, h2, .prov-name, .now, .flag")) setSheet(!sheet.classList.contains("open"));
+});
+let touchY = null;
+sheet.addEventListener("touchstart", e => { touchY = e.touches[0].clientY; }, { passive: true });
+sheet.addEventListener("touchend", e => {
+  if (touchY == null) return;
+  const dy = e.changedTouches[0].clientY - touchY;
+  touchY = null;
+  if (dy < -40 && !sheet.classList.contains("open")) setSheet(true);
+  else if (dy > 50 && sheet.classList.contains("open") && sheet.scrollTop <= 0) setSheet(false);
+});
+// 홈 화면 설치 버튼 (크롬이 설치 가능하다고 알려 줄 때만 보임)
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installEvt = e;
+  document.getElementById("installBtn").classList.add("show");
+});
+document.getElementById("installBtn").onclick = async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice;
+  installEvt = null;
+  document.getElementById("installBtn").classList.remove("show");
+};
+window.addEventListener("appinstalled", () => document.getElementById("installBtn").classList.remove("show"));
+// 서비스 워커(오프라인·설치용): https 또는 localhost 에서만 동작
+if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) {
+  navigator.serviceWorker.register("sw.js").catch(e => console.warn("서비스 워커 등록 실패:", e));
+}
+
+setHeat(heatOn);
+updateView();
+loadOverview();
+select(selected);
+// 1시간마다 갱신 (자료도 1시간 단위). 탭이 보이지 않을 때는 API 사용량을 아끼려고 건너뜀
+setInterval(async () => {
+  if (document.visibilityState !== "visible") return;
+  loadOverview(true);
+  if (heatOn) { try { await loadGrid(true); buildHeat(); } catch {} }
+  if (tab === "world" && W.countries.length) { try { await loadWorldWeather(true); } catch {} }
+}, 60 * 60 * 1000);
+</script>
+</body>
+</html>
