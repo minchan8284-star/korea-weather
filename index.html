@@ -7,7 +7,7 @@
 <!-- 앱 설치(PWA) · 안드로이드 상태 표시줄 색 -->
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#2f6fed" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#11151c" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="format-detection" content="telephone=no" />
@@ -24,10 +24,16 @@
     --shade: #cdd3dc; --mdl: #d63a3a;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #11151c; --card: #1a2029; --text: #e8ecf3; --muted: #95a0b3;
-            --line: #2a3240; --accent: #6b9cff; --hot: #ff7a63; --cold: #6b9cff;
-            --sea: #121a26; --land: #222a36; --land-hover: #2b3544; --land-line: #3d4859; --border-heat: #10141b;
-            --shade: #333b48; --mdl: #ff6b6b; }
+    :root { --bg: #0f1318; --card: #1b2129; --text: #eef1f6; --muted: #a7b0c0;
+            --line: #313b49; --accent: #7aa7ff; --hot: #ff8a75; --cold: #82adff;
+            --sea: #0d1520; --land: #252e3b; --land-hover: #2f3a49; --land-line: #4d5a70; --border-heat: #0b0f15;
+            --shade: #2c3440; --mdl: #ff7b7b; }
+    /* 어두운 화면에서 눈부시지 않게: 기온 색·점·나라 색을 살짝 낮춤 */
+    #heat { opacity: .78; }
+    .country { fill-opacity: .82; }
+    .dot { opacity: .85; }
+    .mk rect { fill: #1f2630; }
+    .tabs button.on, .seg button.on, .ovl .tool.on { color: #0b1220; }
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -149,7 +155,7 @@
   .detail h2 { margin: 0; font-size: 22px; }
   .detail .flag { position: absolute; top: 16px; right: 16px; width: 60px; height: 45px; object-fit: cover;
                   border-radius: 4px; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
-  .detail .flag ~ h2, .detail .flag ~ .prov-name { padding-right: 72px; }
+  .detail .flag ~ .dtitle { padding-right: 72px; }
   .detail .prov-name { color: var(--muted); font-size: 13px; margin-top: 2px; }
   .now { display: flex; gap: 12px; align-items: center; margin: 12px 0; }
   .now .big { font-size: 46px; font-weight: 700; }
@@ -175,72 +181,97 @@
   footer { color: var(--muted); font-size: 12px; margin-top: 16px; }
   footer a { color: inherit; }
   .grab { display: none; }
+  #searchBtn, .br, .dnow { display: none; }
+  .tabbar { flex-basis: 100%; }
   .install { display: none; }
   .install.show { display: inline-block; background: var(--accent); color: #fff; border-color: var(--accent); }
 
   /* ───────── 휴대폰(안드로이드) ───────── */
   @media (max-width: 760px) {
-    :root { --peek: 148px; }
-    .wrap { padding: calc(8px + env(safe-area-inset-top)) 10px calc(var(--peek) + 24px + env(safe-area-inset-bottom)); }
-    /* 머리: 제목·갱신 시각·버튼 / 검색 / 최고·최저(가로 스크롤) */
-    header { gap: 8px; }
-    h1 { flex: 1; font-size: 20px; }
-    .updated { font-size: 12px; }
-    button.btn { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
-    .search { order: 5; width: 100%; font-size: 16px; padding: 11px 12px; border-radius: 10px; } /* 16px: 입력 시 화면 확대 방지 */
-    .ext { order: 6; width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0; }
-    .ext::-webkit-scrollbar { display: none; }
-    .ext button { flex: 0 0 auto; padding: 7px 12px; }
-    /* 탭: 손가락으로 누르기 쉬운 크기 */
-    .tabbar { gap: 6px; }
-    .tabs { margin: 10px 0 8px; }
-    .tabs button { padding: 10px 22px; font-size: 15px; }
-    .subtabs button { padding: 10px 12px; font-size: 14px; }
-    .mapbox { border-radius: 12px; }
-    .mapbox svg, #globe { height: calc(100dvh - 210px - var(--peek)); min-height: 340px; }
-    .ovl .tool, .seg button { padding: 8px 12px; font-size: 14px; }
-    .legend { left: auto; right: 8px; bottom: 8px; padding: 4px 7px; } /* 제주도를 가리지 않게 오른쪽 아래(바다) */
-    .legend .scale { width: 70px; }
-    footer { font-size: 11px; }
+    /* --headH: 머리 높이(스크립트가 실제 높이로 채움), --peek: 접힌 상세 시트 높이 */
+    :root { --peek: 76px; --headH: 96px; }
+    .wrap { padding: env(safe-area-inset-top) 0 calc(var(--peek) + 12px + env(safe-area-inset-bottom)); }
 
-    /* 상세 날씨: 화면 아래 바텀시트 (위로 끌거나 누르면 펼침) */
+    /* 머리 1줄: 제목 · [한국|세계] · 검색 · 새로고침 / 2줄: 지도·목록 · 최고·최저(가로 스크롤) */
+    header { position: sticky; top: 0; z-index: 40; background: var(--bg); gap: 6px 8px; padding: 8px 10px 6px; }
+    h1 { font-size: 19px; order: 1; }
+    .tabbar { display: contents; }
+    .tabs { order: 2; margin: 0 auto 0 4px; }
+    .tabs button { padding: 7px 16px; font-size: 14px; }
+    .updated { display: none; }
+    .install { order: 3; }
+    #searchBtn { display: inline-block; order: 4; }
+    #refresh { order: 5; }
+    button.btn { padding: 7px 11px; font-size: 14px; border-radius: 10px; }
+    .br { display: block; order: 6; flex-basis: 100%; height: 0; }
+    .search { order: 7; width: 100%; font-size: 16px; padding: 9px 12px; border-radius: 10px; display: none; } /* 16px: 입력 시 화면 확대 방지 */
+    header.searching .search { display: block; }
+    .subtabs { order: 8; }
+    .subtabs button { padding: 5px 9px; font-size: 13px; }
+    .ext { order: 9; flex: 1; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0; gap: 6px; }
+    .ext::-webkit-scrollbar { display: none; }
+    .ext button { flex: 0 0 auto; padding: 4px 10px; font-size: 12px; }
+    .ext .k { font-size: 11px; } .ext b { font-size: 13px; }
+
+    /* 지도: 화면 대부분을 차지, 가장자리까지 */
     .main { display: block; }
+    .mapbox { border-radius: 0; border-left: 0; border-right: 0; }
+    .mapbox svg, #globe { height: calc(100dvh - var(--headH) - var(--peek) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+                          min-height: 360px; }
+    .ovl { padding: 3px; font-size: 12px; }
+    .ovl .tool, .seg button { padding: 5px 9px; font-size: 13px; }
+    .crumb { left: 8px; top: 8px; } .tools { right: 8px; top: 8px; }
+    .legend { left: auto; right: 8px; bottom: 8px; padding: 3px 7px; font-size: 11px; } /* 제주도를 가리지 않게 오른쪽 아래(바다) */
+    .legend .scale { width: 64px; height: 6px; }
+    .listview { border-radius: 0; border-left: 0; border-right: 0; }
+    footer { font-size: 11px; padding: 0 10px; }
+    .err { padding: 0 10px; }
+
+    /* 상세 날씨: 화면 아래 바텀시트. 접힌 상태는 '도시 · 날씨 · 기온' 한 줄, 누르거나 위로 쓸면 펼침 */
     .detail { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50; margin: 0;
-              border-radius: 18px 18px 0 0; border-bottom: 0; max-height: 84dvh; overflow: hidden;
-              padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+              border-radius: 16px 16px 0 0; border-bottom: 0; max-height: 84dvh; overflow: hidden;
+              padding: 4px 16px calc(16px + env(safe-area-inset-bottom));
               transform: translateY(calc(100% - var(--peek) - env(safe-area-inset-bottom)));
-              transition: transform .26s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 -6px 24px rgba(0, 0, 0, .18); }
+              transition: transform .26s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 -4px 18px rgba(0, 0, 0, .22); }
     .detail.open { transform: translateY(0); overflow-y: auto; overscroll-behavior: contain; }
-    .grab { display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 4px auto 10px; }
-    .detail .flag { top: 22px; width: 52px; height: 39px; }
-    .detail .now { margin: 8px 0 12px; }
-    .now .big { font-size: 40px; } .now .icon { font-size: 40px; }
-    .hour { flex-basis: 60px; }
+    .grab { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--muted); opacity: .5; margin: 4px auto 8px; }
+    .dhead { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+    .dhead .dtitle { flex: 1; min-width: 0; }
+    .dhead h2 { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dhead .prov-name { font-size: 12px; margin: 0; }
+    .dnow { display: flex; align-items: center; gap: 4px; font-size: 26px; font-weight: 700; }
+    .dnow .ic { font-size: 24px; }
+    .detail .flag { position: static; width: 32px; height: 24px; flex: 0 0 auto; border-radius: 3px; }
+    .detail .flag ~ .dtitle { padding-right: 0; }
+    .detail .now { margin: 10px 0 12px; }
+    .now .big { font-size: 38px; } .now .icon { font-size: 38px; }
+    .hour { flex-basis: 56px; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header id="top">
     <h1>날씨</h1>
     <div class="ext" id="ext"></div>
     <input class="search" id="search" type="search" enterkeyhint="search" placeholder="도시 검색 후 Enter" autocomplete="off" />
     <span class="updated" id="updated">불러오는 중…</span>
     <button class="btn install" id="installBtn" title="홈 화면에 앱으로 설치">앱 설치</button>
-    <button class="btn" id="refresh" title="새로고침">⟳</button>
+    <button class="btn icon-only" id="searchBtn" title="검색" aria-label="검색">🔍</button>
+    <button class="btn icon-only" id="refresh" title="새로고침" aria-label="새로고침">⟳</button>
+    <i class="br"></i>
+    <div class="tabbar">
+      <div class="tabs" role="tablist">
+        <button id="tabKorea" class="on" role="tab">한국</button>
+        <button id="tabWorld" role="tab">세계</button>
+      </div>
+      <!-- 한국 탭에 딸린 보기 -->
+      <div class="subtabs" id="subTabs">
+        <button id="tabMap" class="on">지도</button>
+        <button id="tabList">목록</button>
+      </div>
+    </div>
   </header>
-
-  <div class="tabbar">
-    <div class="tabs" role="tablist">
-      <button id="tabKorea" class="on" role="tab">한국</button>
-      <button id="tabWorld" role="tab">세계</button>
-    </div>
-    <!-- 한국 탭에 딸린 보기 -->
-    <div class="subtabs" id="subTabs">
-      <button id="tabMap" class="on">지도</button>
-      <button id="tabList">목록</button>
-    </div>
-  </div>
   <div id="error" class="err" hidden></div>
 
   <div class="main">
@@ -471,20 +502,33 @@ async function loadDetail(loc) {
 // 세계 모드: 상세 창 오른쪽 위 국기 (불러오지 못하면 숨김)
 const flagHtml = loc => loc.flag
   ? `<img class="flag" src="${FLAG_URL(loc.flag)}" alt="${loc.country || ""} 국기" onerror="this.remove()">` : "";
-const cityLoc = c => ({ key: "kr" + c.id, name: c.name, sub: PROV[c.prov].name, lat: c.lat, lon: c.lon });
+const cityLoc = c => ({ key: "kr" + c.id, name: c.name, sub: PROV[c.prov].name, lat: c.lat, lon: c.lon, quick: overview[c.id] });
 
 // ───────── 선택 / 상세 ─────────
 let detailKey = null;
-async function showDetail(loc) {
+// 상세 머리: 국기 · 이름/지역 · (휴대폰에서 접혔을 때 보이는) 현재 날씨
+const detailHead = (loc, nowHtml = "") =>
+  `<div class="dhead">${flagHtml(loc)}<div class="dtitle"><h2>${loc.name}</h2><div class="prov-name">${loc.sub}</div></div>
+   <div class="dnow">${nowHtml}</div></div>`;
+async function showDetail(loc, retry = 0) {
   detailKey = loc.key;
   const el = document.getElementById("detail");
-  el.innerHTML = `${flagHtml(loc)}<h2>${loc.name}</h2><div class="prov-name">${loc.sub}</div><div class="muted" style="margin-top:12px">불러오는 중…</div>`;
+  // 대략적인 현재 기온은 이미 받은 개요에서 바로 보여 줌
+  const o = loc.quick;
+  el.innerHTML = detailHead(loc, o ? `<span class="ic">${wmo(o.code, o.isDay).icon}</span>${r(o.temp)}°` : "") +
+                 `<div class="muted" style="margin-top:12px">불러오는 중…</div>`;
   try {
     const d = await loadDetail(loc);
     if (detailKey === loc.key) renderDetail(loc, d);
   } catch (e) {
-    const msg = /429/.test(e.message) ? "날씨 서버의 요청 한도를 잠시 넘었습니다. 1분쯤 뒤 새로고침하세요." : e.message;
-    if (detailKey === loc.key) el.innerHTML += `<div class="err">상세 예보를 불러오지 못했습니다: ${msg}</div>`;
+    if (detailKey !== loc.key) return;
+    if (/429/.test(e.message) && retry < 3) {
+      // 요청 한도 초과: 잠시 기다렸다가 자동으로 다시 시도
+      el.querySelector(".muted").textContent = "날씨 서버가 잠시 바빠 20초 뒤 다시 불러옵니다…";
+      setTimeout(() => { if (detailKey === loc.key) showDetail(loc, retry + 1); }, 20000);
+      return;
+    }
+    el.querySelector(".muted").outerHTML = `<div class="err">상세 예보를 불러오지 못했습니다: ${e.message}</div>`;
   }
 }
 async function select(id, { focus = false } = {}) {
@@ -519,7 +563,7 @@ function renderDetail(city, d) {
       <div class="lo">${r(dl.temperature_2m_min[j])}°</div><div class="hi">${r(dl.temperature_2m_max[j])}°</div></div>`;
   }).join("");
   document.getElementById("detail").innerHTML = `
-    ${flagHtml(city)}<h2>${city.name}</h2><div class="prov-name">${city.sub}</div>
+    ${detailHead(city, `<span class="ic">${w.icon}</span>${r(c.temperature_2m)}°`)}
     <div class="now"><span class="icon">${w.icon}</span>
       <div><div class="big">${r(c.temperature_2m)}°</div><div class="desc">${w.desc} · 체감 ${r(c.apparent_temperature)}°</div></div></div>
     <div class="stats">
@@ -872,11 +916,14 @@ function focusCity(c) {
 }
 document.querySelectorAll("#seg button").forEach(b => b.onclick = () => setTop(b.dataset.top));
 
+// 지도 라벨 크기 배율: 휴대폰에서는 80%로 줄여 더 많은 도시가 들어가게
+const labelScale = () => matchMedia("(max-width: 760px)").matches ? 0.8 : 1;
 function drawMarkers() {
   const g = document.getElementById("marks");
   if (!overview.length || animating) { if (!overview.length) g.innerHTML = ""; return; }
   const { ppu, ox, oy } = viewScale();
-  const L = 1 / ppu;
+  const LS = labelScale();     // 휴대폰에서는 라벨을 작게
+  const L = LS / ppu;
   const sx = c => (c.x - vb.x) * ppu + ox, sy = c => (c.y - vb.y) * ppu + oy;
   const { width: W, height: H } = svg.getBoundingClientRect();
   // "휴전선" 글자는 화면에서 늘 같은 크기(12px)
@@ -897,14 +944,14 @@ function drawMarkers() {
   });
   // 라벨 후보 위치(px): 제자리 → 가까운 위·아래·좌·우 → 대각선. 지시선 없이 살짝 비켜 놓음
   const OFFS = [[0, 0], [0, -20], [0, 20], [30, 0], [-30, 0], [28, -18], [-28, -18], [28, 18], [-28, 18],
-                [0, -38], [0, 38], [56, 0], [-56, 0]];
+                [0, -38], [0, 38], [56, 0], [-56, 0]].map(([a, b]) => [a * LS, b * LS]);
   const overlaps = b => boxes.some(o => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
   const placed = [], dots = [];
   order.forEach((c, i) => {
     const [x, y] = pts[i];
     for (const [dx, dy] of OFFS) {
       const cx = x + dx, cy = y + dy;
-      const box = [cx - 28, cy - 12, cx + 28, cy + 27];
+      const box = [cx - 28 * LS, cy - 12 * LS, cx + 28 * LS, cy + 27 * LS];
       if (box[0] < 2 || box[1] < 2 || box[2] > W - 2 || box[3] > H - 2 || overlaps(box)) continue;
       if (pts.some((p, j) => j !== i && p[0] > box[0] - 4 && p[0] < box[2] + 4 && p[1] > box[1] - 4 && p[1] < box[3] + 4)) continue;
       boxes.push(box);
@@ -915,7 +962,8 @@ function drawMarkers() {
   });
 
   const dotSvg = dots.map(c => `<circle class="dot" data-id="${c.id}" cx="${c.x}" cy="${c.y}" r="${5 * L}" fill="${tempColor(overview[c.id].temp)}" stroke-width="${1.5 * L}"><title>${c.name} ${r(overview[c.id].temp)}°</title></circle>`).join("");
-  const labelSvg = placed.reverse().map(({ c, dx, dy }) => {
+  const labelSvg = placed.reverse().map(({ c, dx: px, dy: py }) => {
+    const dx = px / LS, dy = py / LS; // 라벨 내부 좌표(축소 전 단위)
     const o = overview[c.id], w = wmo(o.code, o.isDay);
     return `<g class="mk${c.id === selected ? " active" : ""}" data-id="${c.id}" transform="translate(${c.x.toFixed(1)},${c.y.toFixed(1)}) scale(${L.toFixed(4)})">
       <rect x="${dx - 27}" y="${dy - 11}" width="54" height="22" rx="11" stroke="${tempColor(o.temp)}"/>
@@ -1150,7 +1198,9 @@ function sizeGlobe() {
   const b = gsvg.getBoundingClientRect();
   if (!b.width) return;
   gsvg.setAttribute("width", b.width); gsvg.setAttribute("height", b.height);
-  gProj.scale((Math.min(b.width, b.height) / 2 - 18) * W.zoom).translate([b.width / 2, b.height / 2]);
+  // 휴대폰(세로 화면)은 지구본을 크게 — 양옆이 조금 잘려도 세로 공간을 채움
+  const base = labelScale() < 1 ? Math.min(b.width * 0.68, b.height / 2 - 12) : Math.min(b.width, b.height) / 2 - 18;
+  gProj.scale(base * W.zoom).translate([b.width / 2, b.height / 2]);
 }
 function setZoom(z) {
   W.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
@@ -1219,16 +1269,17 @@ function drawWorldMarkers() {
   // 우선순위: 선택 → 넓은 나라의 수도 → 수도 → 인구
   const score = c => (c === W.sel ? 1e12 : 0) + (c.cap ? 1e9 + c.country.area * 1e8 : 0) + c.pop;
   const order = [...W.cities].sort((a, c) => score(c) - score(a));
+  const LS = labelScale();
   let html = "";
   for (const c of order) {
     if (d3.geoDistance([c.lon, c.lat], center) > 1.35) continue; // 가장자리는 생략
     const [x, y] = gProj([c.lon, c.lat]);
     if (x < -30 || y < -30 || x > b.width + 30 || y > b.height + 30) continue; // 확대해서 화면 밖
-    const box = [x - 28, y - 12, x + 28, y + 27];
+    const box = [x - 28 * LS, y - 12 * LS, x + 28 * LS, y + 27 * LS];
     if (boxes.some(o => box[0] < o[2] && box[2] > o[0] && box[1] < o[3] && box[3] > o[1])) continue;
     boxes.push(box);
     const o = W.data[c.i], w = wmo(o.code, o.isDay);
-    html += `<g class="mk${c === W.sel ? " active" : ""}" data-w="${c.i}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+    html += `<g class="mk${c === W.sel ? " active" : ""}" data-w="${c.i}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${LS})">
       <rect x="-27" y="-11" width="54" height="22" rx="11" stroke="${tempColor(o.temp)}"/>
       <text x="-12" y="4.5" text-anchor="middle" font-size="12">${w.icon}</text>
       <text x="11" y="4.5" text-anchor="middle" font-size="12" font-weight="700">${r(o.temp)}°</text>
@@ -1269,7 +1320,8 @@ function selectWorld(c, rotate = false) {
   W.sel = c;
   if (rotate) { setSpin(false); rotateTo(c.lon, c.lat); } else renderGlobe();
   showDetail({ key: "w" + c.i + c.name, name: c.name, sub: `${c.country.name}${c.cap ? " · 수도" : ""} · 현지 시각`,
-               lat: c.lat, lon: c.lon, tz: "auto", flag: c.country.iso2, country: c.country.name });
+               lat: c.lat, lon: c.lon, tz: "auto", flag: c.country.iso2, country: c.country.name,
+               quick: W.data && W.data[c.i] });
 }
 // 나라를 누르면 그 나라의 수도(없으면 첫 도시)
 function selectCountry(country) {
@@ -1371,6 +1423,17 @@ document.getElementById("refresh").onclick = async () => {
 
 // ───────── 휴대폰: 바텀시트 · 뒤로가기 · 앱 설치 ─────────
 const sheet = document.getElementById("sheet");
+// 머리 실제 높이를 CSS 변수로 → 휴대폰에서 지도가 남은 화면을 꽉 채움
+const topBar = document.getElementById("top");
+new ResizeObserver(() => document.documentElement.style.setProperty("--headH", topBar.offsetHeight + "px")).observe(topBar);
+// 휴대폰: 🔍 버튼으로 검색창 펼치기/접기
+document.getElementById("searchBtn").onclick = () => {
+  const on = topBar.classList.toggle("searching");
+  if (on) $search.focus(); else $search.blur();
+};
+$search.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !$search.classList.contains("miss")) setTimeout(() => topBar.classList.remove("searching"), 0);
+});
 const isPhone = () => matchMedia("(max-width: 760px)").matches;
 // 화면 '층'(도 화면, 세계 탭, 펼친 시트)마다 기록을 하나씩 쌓아, 안드로이드 뒤로가기가 앱을 닫지 않고 한 층씩 닫게 함
 function pushLayer(kind) { history.pushState({ nav: kind }, ""); }
