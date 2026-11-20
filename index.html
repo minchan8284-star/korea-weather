@@ -946,22 +946,20 @@ function drawMarkers() {
   const OFFS = [[0, 0], [0, -20], [0, 20], [30, 0], [-30, 0], [28, -18], [-28, -18], [28, 18], [-28, 18],
                 [0, -38], [0, 38], [56, 0], [-56, 0]].map(([a, b]) => [a * LS, b * LS]);
   const overlaps = b => boxes.some(o => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
-  const placed = [], dots = [];
+  const placed = [];
   order.forEach((c, i) => {
     const [x, y] = pts[i];
     for (const [dx, dy] of OFFS) {
       const cx = x + dx, cy = y + dy;
       const box = [cx - 28 * LS, cy - 12 * LS, cx + 28 * LS, cy + 27 * LS];
       if (box[0] < 2 || box[1] < 2 || box[2] > W - 2 || box[3] > H - 2 || overlaps(box)) continue;
-      if (pts.some((p, j) => j !== i && p[0] > box[0] - 4 && p[0] < box[2] + 4 && p[1] > box[1] - 4 && p[1] < box[3] + 4)) continue;
       boxes.push(box);
       placed.push({ c, dx, dy });
       return;
     }
-    dots.push(c);
+    // 들어갈 자리가 없는 도시는 표시하지 않음 (도를 누르면 그 도의 도시가 더 나옴)
   });
 
-  const dotSvg = dots.map(c => `<circle class="dot" data-id="${c.id}" cx="${c.x}" cy="${c.y}" r="${5 * L}" fill="${tempColor(overview[c.id].temp)}" stroke-width="${1.5 * L}"><title>${c.name} ${r(overview[c.id].temp)}°</title></circle>`).join("");
   const labelSvg = placed.reverse().map(({ c, dx: px, dy: py }) => {
     const dx = px / LS, dy = py / LS; // 라벨 내부 좌표(축소 전 단위)
     const o = overview[c.id], w = wmo(o.code, o.isDay);
@@ -972,7 +970,7 @@ function drawMarkers() {
       <text class="nm" x="${dx}" y="${dy + 24}" text-anchor="middle">${c.name}</text>
       <title>${c.name} (${PROV[c.prov].name}) · ${w.desc} ${r(o.temp)}° · 최고 ${r(o.max)}° 최저 ${r(o.min)}°</title></g>`;
   }).join("");
-  g.innerHTML = dotSvg + labelSvg;
+  g.innerHTML = labelSvg;
 }
 
 // 클릭: 도시 → 상세 / 도 → 2차 화면 / 바다 → 1차 화면
